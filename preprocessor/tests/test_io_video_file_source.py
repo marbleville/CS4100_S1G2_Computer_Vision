@@ -41,14 +41,12 @@ def test_factory_without_video_path_raises_not_implemented() -> None:
 def test_packet_shape_and_dtype(monkeypatch: pytest.MonkeyPatch) -> None:
     frames = _make_fake_frames(1)
 
-    def fake_immeta(path: str, plugin: str) -> dict[str, float]:
+    def fake_immeta(path: str) -> dict[str, float]:
         assert path.endswith(".mp4")
-        assert plugin == "ffmpeg"
         return {"fps": 10.0}
 
-    def fake_imiter(path: str, plugin: str) -> Iterator[np.ndarray]:
+    def fake_imiter(path: str) -> Iterator[np.ndarray]:
         assert path.endswith(".mp4")
-        assert plugin == "ffmpeg"
         return iter(frames)
 
     import preprocessor.io.video_file_source as vfs
@@ -70,10 +68,10 @@ def test_packet_shape_and_dtype(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_timestamp_sequence_and_eos(monkeypatch: pytest.MonkeyPatch) -> None:
     frames = _make_fake_frames(3)
 
-    def fake_immeta(path: str, plugin: str) -> dict[str, float]:
+    def fake_immeta(path: str) -> dict[str, float]:
         return {"fps": 20.0}
 
-    def fake_imiter(path: str, plugin: str) -> Iterator[np.ndarray]:
+    def fake_imiter(path: str) -> Iterator[np.ndarray]:
         return iter(frames)
 
     import preprocessor.io.video_file_source as vfs
@@ -98,10 +96,10 @@ def test_timestamp_sequence_and_eos(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_close_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     frames = _make_fake_frames(1)
 
-    def fake_immeta(path: str, plugin: str) -> dict[str, float]:
+    def fake_immeta(path: str) -> dict[str, float]:
         return {"fps": 5.0}
 
-    def fake_imiter(path: str, plugin: str) -> Iterator[np.ndarray]:
+    def fake_imiter(path: str) -> Iterator[np.ndarray]:
         return iter(frames)
 
     import preprocessor.io.video_file_source as vfs
@@ -120,10 +118,10 @@ def test_close_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_deterministic_frame_count_and_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
     frames = _make_fake_frames(4)
 
-    def fake_immeta(path: str, plugin: str) -> dict[str, float]:
+    def fake_immeta(path: str) -> dict[str, float]:
         return {"fps": 8.0}
 
-    def fake_imiter(path: str, plugin: str) -> Iterator[np.ndarray]:
+    def fake_imiter(path: str) -> Iterator[np.ndarray]:
         # Return fresh iterator for each reader instance.
         return iter([frame.copy() for frame in frames])
 
@@ -152,7 +150,7 @@ def test_deterministic_frame_count_and_timestamps(monkeypatch: pytest.MonkeyPatc
 
 
 def test_invalid_or_missing_fps_raises_value_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_imiter(path: str, plugin: str) -> Iterator[np.ndarray]:
+    def fake_imiter(path: str) -> Iterator[np.ndarray]:
         return iter(_make_fake_frames(1))
 
     import preprocessor.io.video_file_source as vfs
@@ -160,7 +158,7 @@ def test_invalid_or_missing_fps_raises_value_error(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(vfs.iio, "imiter", fake_imiter)
 
     for bad_fps in (None, 0, -1):
-        def fake_immeta(path: str, plugin: str, value=bad_fps) -> dict[str, float | None]:
+        def fake_immeta(path: str, value=bad_fps) -> dict[str, float | None]:
             return {"fps": value}
 
         monkeypatch.setattr(vfs.iio, "immeta", fake_immeta)
