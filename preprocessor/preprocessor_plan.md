@@ -52,13 +52,6 @@ Proposed types:
 - Pros: can generalize better across environments once trained.
 - Cons: requires labeled detection data and longer setup; higher risk for first milestone.
 
-3. Fixed ROI assumptions
-
-- Pros: fastest prototype path.
-- Cons: brittle; poor transfer across users/camera placement.
-
-Decision: implement (1) now, keep adapter seam so (2) can be added later.
-
 ### Implementation Plan
 
 1. Package skeleton and contracts
