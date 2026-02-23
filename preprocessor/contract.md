@@ -111,3 +111,59 @@ Timestamp policy:
 Frame normalization guarantees:
 - `frame_rgb` is RGB, shape `(frame_size[1], frame_size[0], 3)`, dtype `uint8`.
 - Source frames are resized to `PreprocessorConfig.frame_size` in IO layer.
+
+## Preprocessing Pipeline (Phase 3)
+
+### Public API
+
+```python
+PreprocessingPipeline(config: PreprocessorConfig)
+PreprocessingPipeline.process(packet: FramePacket) -> PipelineFrameResult
+PreprocessingPipeline.reset() -> None
+```
+
+### `PipelineFrameResult`
+
+- `timestamp_ms: int`
+- `frame_index: int`
+- `mask: np.ndarray` (binary mask)
+- `selected_label: int | None`
+- `selected_bbox_xyxy_px: tuple[int, int, int, int] | None`
+- `selected_centroid_xy_px: tuple[float, float] | None`
+- `selected_area_px: int | None`
+- `candidate_count: int`
+- `quality_score: float`
+- `debug: dict[str, float | int | str]`
+
+### Behavior
+
+- Input frame validation:
+  - expects shape `(H, W, 3)`.
+  - converts to `uint8` if needed.
+- Color transforms:
+  - RGB->grayscale.
+  - RGB->HSV.
+  - RGB->YCbCr.
+- Optional running-average background model contributes foreground score.
+- Fused confidence map is denoised with gaussian blur.
+- Thresholding:
+  - global percentile threshold.
+  - optional local tile correction blended with global threshold.
+- Mask cleanup:
+  - binary open.
+  - binary close.
+- Connected components extract per-blob geometry and quality stats.
+- Candidate selection applies hard constraints and continuity-aware scoring.
+- The selected candidate and diagnostics are returned as `PipelineFrameResult`.
+
+### Continuity and State
+
+- Pipeline maintains prior selected centroid/bbox/area for continuity scoring.
+- `reset()` clears continuity and background model state.
+
+### Handoff to Phase 4
+
+- `pipeline_result_to_hand_result(...)` converts `PipelineFrameResult` into
+  `HandFrameResult`.
+- Phase 4 feature extraction will expand contour extraction and richer output
+  fields while preserving this seam.
