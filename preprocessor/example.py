@@ -33,4 +33,4 @@ while packet:
     elapsed_time = end_time - start_time
 
     print(f"Elapsed time (sec): {elapsed_time}")
-    packet = source.read()
+    packet = None  # source.read()
