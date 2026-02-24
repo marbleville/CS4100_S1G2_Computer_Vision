@@ -54,6 +54,8 @@ Proposed types:
 
 ### Implementation Plan
 
+<s>
+
 1. Package skeleton and contracts
 
 - Create `preprocessor/` package structure (`config`, `io`, `pipeline`, `features`, `buffers`, `types`, `tests`).
@@ -79,6 +81,7 @@ Proposed types:
 - Compute normalized bbox and centroid.
 - Extract contour/edge points (boundary tracing on binary mask).
 - Compute frame quality score (mask stability + area constraints).
+  </s>
 
 5. Motion buffering and temporal features
 
