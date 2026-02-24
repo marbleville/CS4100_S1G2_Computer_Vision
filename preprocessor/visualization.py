@@ -31,16 +31,17 @@ def render_pipeline_result(
 
     mask = np.asarray(result.mask).astype(bool)
     if mask.shape != frame.shape[:2]:
-        raise ValueError("PipelineFrameResult.mask shape must match frame height/width.")
+        raise ValueError(
+            "PipelineFrameResult.mask shape must match frame height/width.")
 
     vis = frame.copy()
     vis[~mask] = 0
 
-    if result.selected_bbox_xyxy_px is not None:
+    for component in result.candidates:
         _draw_bbox(
             image=vis,
-            bbox=result.selected_bbox_xyxy_px,
-            color=bbox_color,
+            bbox=component.bbox_xyxy,
+            color=(0, 0, 255),
             width=max(1, int(bbox_width)),
         )
 
@@ -75,7 +76,7 @@ def _draw_bbox(
         xl = min(w - 1, x0 + t)
         xr = max(0, x1 - t)
 
-        image[yt, x0 : x1 + 1] = color
-        image[yb, x0 : x1 + 1] = color
-        image[y0 : y1 + 1, xl] = color
-        image[y0 : y1 + 1, xr] = color
+        image[yt, x0: x1 + 1] = color
+        image[yb, x0: x1 + 1] = color
+        image[y0: y1 + 1, xl] = color
+        image[y0: y1 + 1, xr] = color

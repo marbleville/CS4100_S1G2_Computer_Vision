@@ -10,7 +10,7 @@ class PreprocessorConfig:
 
     buffer_size: int
     async_process: bool
-    input_mode: Literal["webcam", "image_dir"]
+    input_mode: Literal["webcam", "local_video"]
     camera_device: int = 0
     image_dir: str | None = None
     video_path: str | None = None

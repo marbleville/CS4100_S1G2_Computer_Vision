@@ -15,9 +15,8 @@ from preprocessor.pipeline.color import (
     rgb_to_hsv,
     rgb_to_ycbcr,
 )
-from preprocessor.pipeline.components import ComponentStats, connected_components
+from preprocessor.pipeline.components import ComponentStats, connected_components, coalesce_components
 from preprocessor.pipeline.filtering import binary_close, binary_open, gaussian_blur
-from preprocessor.pipeline.selection import SelectionConfig, select_best_component
 from preprocessor.pipeline.thresholding import (
     global_percentile_threshold,
     local_tile_threshold,
@@ -29,6 +28,22 @@ from preprocessor.types.results import HandFrameResult
 
 @dataclass(frozen=True, slots=True)
 class PipelineProfile:
+    """Tunable preprocessing profile.
+
+    Field tuning guide:
+    - `percentile`: global threshold percentile on fused score map. Lower keeps more pixels.
+    - `local_percentile`: tile-local threshold percentile. Lower increases local sensitivity.
+    - `tiles_x`, `tiles_y`: local threshold grid density. Higher adapts better to uneven lighting.
+    - `threshold_blend`: mix of local/global thresholds (0=local only, 1=global only).
+    - `gaussian_kernel`: blur kernel for score smoothing. Higher suppresses noise but softens edges.
+    - `morphology_kernel`: kernel size for open/close cleanup. Higher removes more small artifacts.
+    - `min_area_percent`: minimum component area as fraction of frame area.
+    - `components_touch_edge`: include components touching frame border when True.
+    - `background_enabled`: enables running-average foreground cue.
+    - `background_alpha`: background update rate; higher adapts faster, lower is steadier.
+    - `background_warmup`: initial frame count where background cue is treated cautiously.
+    """
+
     percentile: float
     local_percentile: float
     tiles_x: int
@@ -36,7 +51,8 @@ class PipelineProfile:
     threshold_blend: float
     gaussian_kernel: int
     morphology_kernel: int
-    min_area_px: int
+    min_area_percent: float
+    components_touch_edge: bool
     background_enabled: bool
     background_alpha: float
     background_warmup: int
@@ -44,43 +60,24 @@ class PipelineProfile:
 
 _PROFILE_MAP: dict[str, PipelineProfile] = {
     "default": PipelineProfile(
-        percentile=84.0,
-        local_percentile=86.0,
+        # Keep top ~20% fused-confidence pixels globally.
+        percentile=80.0,
+        # Same percentile locally to adapt to lighting variation per tile.
+        local_percentile=80.0,
         tiles_x=8,
         tiles_y=6,
-        threshold_blend=0.35,
+        # 0.5 balances local sensitivity with global stability.
+        threshold_blend=0.50,
+        # 5x5 smoothing reduces speckle before thresholding.
         gaussian_kernel=5,
+        # 3x3 open/close removes tiny islands and fills tiny holes.
         morphology_kernel=3,
-        min_area_px=45,
+        min_area_percent=0.01,
+        components_touch_edge=False,
         background_enabled=False,
+        # If enabled: slow background update for stability.
         background_alpha=0.08,
         background_warmup=8,
-    ),
-    "low_light": PipelineProfile(
-        percentile=80.0,
-        local_percentile=82.0,
-        tiles_x=8,
-        tiles_y=6,
-        threshold_blend=0.45,
-        gaussian_kernel=5,
-        morphology_kernel=3,
-        min_area_px=35,
-        background_enabled=True,
-        background_alpha=0.06,
-        background_warmup=10,
-    ),
-    "high_motion": PipelineProfile(
-        percentile=86.0,
-        local_percentile=88.0,
-        tiles_x=6,
-        tiles_y=4,
-        threshold_blend=0.30,
-        gaussian_kernel=3,
-        morphology_kernel=3,
-        min_area_px=45,
-        background_enabled=False,
-        background_alpha=0.10,
-        background_warmup=6,
     ),
 }
 
@@ -92,7 +89,6 @@ class PreprocessingPipeline:
         self._config = config
         self._profile = _PROFILE_MAP.get(
             config.threshold_profile, _PROFILE_MAP["default"])
-        self._selection_cfg = SelectionConfig()
         self._prev_centroid: tuple[float, float] | None = None
         self._prev_bbox: tuple[int, int, int, int] | None = None
         self._prev_area: int | None = None
@@ -109,7 +105,6 @@ class PreprocessingPipeline:
 
     def process(self, packet: FramePacket) -> PipelineFrameResult:
         frame = _validate_frame(packet.frame_rgb)
-        h, w = frame.shape[:2]
 
         gray = rgb_to_grayscale(frame)
         hsv = rgb_to_hsv(frame)
@@ -141,81 +136,49 @@ class PreprocessingPipeline:
         mask = binary_open(mask, kernel_size=self._profile.morphology_kernel)
         mask = binary_close(mask, kernel_size=self._profile.morphology_kernel)
 
-        labels, components = connected_components(mask)
-        components = [c for c in components if c.area >=
-                      self._profile.min_area_px]
+        _, components = connected_components(mask)
+        components = coalesce_components(components)
 
-        selected, selection_debug = select_best_component(
-            components=components,
-            frame_width=w,
-            frame_height=h,
-            prev_centroid=self._prev_centroid,
-            cfg=self._selection_cfg,
-        )
-        if selected is not None:
-            self._prev_centroid = selected.centroid_xy
-            self._prev_bbox = selected.bbox_xyxy
-            self._prev_area = selected.area
+        h, w = frame.shape[:2]
+        frame_area = w * h
+        components = self.filter_candidate_components(components, frame_area)
 
-        quality_score = _quality_score(
-            mask, selected, selection_debug.get("selected_score", 0.0))
-        debug = {
-            "global_threshold": float(global_threshold),
-            "candidate_count": int(selection_debug.get("candidate_count", 0)),
-            "selected_score": float(selection_debug.get("selected_score", 0.0)),
-            "profile": self._config.threshold_profile,
-            "warmup": int(warmup),
-        }
         return PipelineFrameResult(
             timestamp_ms=packet.timestamp_ms,
             frame_index=packet.frame_index,
             mask=mask.astype(bool),
-            selected_label=(selected.label if selected else None),
-            selected_bbox_xyxy_px=(selected.bbox_xyxy if selected else None),
-            selected_centroid_xy_px=(
-                selected.centroid_xy if selected else None),
-            selected_area_px=(selected.area if selected else None),
-            candidate_count=int(selection_debug.get("candidate_count", 0)),
-            quality_score=quality_score,
-            debug=debug,
+            candidates=components,
         )
+
+    def filter_candidate_components(self, components: list[ComponentStats], frame_area) -> list[ComponentStats]:
+        """Filters unwanted compoents based on setting from processor profile"""
+
+        components = [c for c in components if c.area / frame_area >=
+                      self._profile.min_area_percent]
+        components = [
+            c for c in components if self._profile.components_touch_edge or not c.touches_border]
+
+        return components
 
 
 def pipeline_result_to_hand_result(
     result: PipelineFrameResult,
-    frame_width: int,
-    frame_height: int,
 ) -> HandFrameResult:
     """Phase 4 handoff seam converting pipeline output to HandFrameResult."""
-    if result.selected_bbox_xyxy_px is None or result.selected_centroid_xy_px is None:
+    if result.candidates == []:
         return HandFrameResult(
             status=ResultStatus.NO_HAND,
             timestamp_ms=result.timestamp_ms,
-            bbox_xyxy_norm=None,
-            centroid_xy_norm=None,
-            contour_points_norm=[],
-            quality_score=result.quality_score,
+            candidates_bbox_px=[]
         )
 
-    x0, y0, x1, y1 = result.selected_bbox_xyxy_px
-    cx, cy = result.selected_centroid_xy_px
-    bbox_norm = (
-        x0 / max(float(frame_width), 1.0),
-        y0 / max(float(frame_height), 1.0),
-        x1 / max(float(frame_width), 1.0),
-        y1 / max(float(frame_height), 1.0),
-    )
-    centroid_norm = (
-        cx / max(float(frame_width), 1.0),
-        cy / max(float(frame_height), 1.0),
-    )
+    candidate_bbox = list(
+        map(lambda candidate: candidate.bbox_xyxy, result.candidates))
+
     return HandFrameResult(
         status=ResultStatus.OK,
         timestamp_ms=result.timestamp_ms,
-        bbox_xyxy_norm=bbox_norm,
-        centroid_xy_norm=centroid_norm,
-        contour_points_norm=[],
-        quality_score=result.quality_score,
+        candidates_bbox_px=candidate_bbox
     )
 
 
@@ -226,13 +189,3 @@ def _validate_frame(frame: np.ndarray) -> np.ndarray:
     if arr.dtype != np.uint8:
         arr = arr.astype(np.uint8)
     return arr
-
-
-def _quality_score(mask: np.ndarray, selected: ComponentStats | None, selected_score: float) -> float:
-    occupancy = float(mask.mean())
-    occupancy_term = max(0.0, 1.0 - abs(occupancy - 0.18) / 0.18)
-    selected_term = 0.0 if selected is None else min(
-        1.0, selected.area / max(mask.size * 0.22, 1.0))
-    score = 0.4 * occupancy_term + 0.4 * \
-        selected_term + 0.2 * float(selected_score)
-    return float(np.clip(score, 0.0, 1.0))

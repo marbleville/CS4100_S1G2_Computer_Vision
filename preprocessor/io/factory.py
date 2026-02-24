@@ -10,6 +10,6 @@ def build_frame_source(config: PreprocessorConfig) -> FrameSource:
 
     Local video source takes precedence when `video_path` is provided.
     """
-    if config.video_path:
+    if config.video_path and config.input_mode == "local_video":
         return VideoFileFrameSource(config)
     raise NotImplementedError("Only `video_path` is supported in Phase 2.")
