@@ -11,10 +11,7 @@ class HandFrameResult:
 
     status: ResultStatus
     timestamp_ms: int
-    bbox_xyxy_norm: tuple[float, float, float, float] | None
-    centroid_xy_norm: tuple[float, float] | None
-    contour_points_norm: list[tuple[float, float]] = field(default_factory=list)
-    quality_score: float | None = None
+    candidates_bbox_px: list[tuple[int, int, int, int]]
     error_message: str | None = None
 
 
