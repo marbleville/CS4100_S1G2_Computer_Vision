@@ -8,6 +8,4 @@ class ResultStatus(str, Enum):
 
     OK = "ok"
     NO_HAND = "no_hand"
-    LOW_CONFIDENCE = "low_confidence"
-    INSUFFICIENT_HISTORY = "insufficient_history"
     ERROR = "error"

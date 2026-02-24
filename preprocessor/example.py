@@ -8,8 +8,6 @@ from preprocessor.visualization import render_pipeline_result
 
 for file_name in ['nothing.mov', 'open_hand.mov', 'thumbs_up.mov', 'two_hands.mov']:
     config = PreprocessorConfig(
-        buffer_size=8,
-        async_process=False,
         input_mode='local_video',
         video_path=f'./data/test/{file_name}',
     )
