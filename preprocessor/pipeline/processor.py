@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 
+import cv2
 import numpy as np
 
 from preprocessor.config.types import PreprocessorConfig
@@ -23,7 +25,7 @@ from preprocessor.pipeline.thresholding import (
 )
 from preprocessor.pipeline.types import PipelineFrameResult
 from preprocessor.types.enums import ResultStatus
-from preprocessor.types.results import HandFrameResult
+from preprocessor.types.results import HandCandidateFrame, HandFrameResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,12 +98,18 @@ class PreprocessingPipeline:
             alpha=self._profile.background_alpha,
             warmup_frames=self._profile.background_warmup,
         )
+        self._candidate_buffer: deque[HandCandidateFrame] = deque(
+            maxlen=config.candidate_buffer_size
+        )
+        self._candidate_buffer_overwrites = 0
 
     def reset(self) -> None:
         self._prev_centroid = None
         self._prev_bbox = None
         self._prev_area = None
         self._bg_model.reset()
+        self._candidate_buffer.clear()
+        self._candidate_buffer_overwrites = 0
 
     def process(self, packet: FramePacket) -> PipelineFrameResult:
         frame = _validate_frame(packet.frame_rgb)
@@ -142,43 +150,101 @@ class PreprocessingPipeline:
         h, w = frame.shape[:2]
         frame_area = w * h
         components = self.filter_candidate_components(components, frame_area)
+        components = sorted(components, key=lambda candidate: candidate.area, reverse=True)
+        candidate_frames = self._extract_candidate_frames(
+            packet=packet,
+            frame=frame,
+            components=components,
+        )
+        self._enqueue_candidate_frames(candidate_frames)
 
         return PipelineFrameResult(
             timestamp_ms=packet.timestamp_ms,
             frame_index=packet.frame_index,
             mask=mask.astype(bool),
             candidates=components,
+            candidate_frames=candidate_frames,
+            debug={
+                "candidate_count": len(components),
+                "candidate_buffer_depth": len(self._candidate_buffer),
+                "candidate_buffer_overwrites": self._candidate_buffer_overwrites,
+                "candidate_frame_size_px": self._config.candidate_frame_size_px,
+            },
         )
 
-    def filter_candidate_components(self, components: list[ComponentStats], frame_area) -> list[ComponentStats]:
+    def filter_candidate_components(
+        self,
+        components: list[ComponentStats],
+        frame_area: int,
+    ) -> list[ComponentStats]:
         """Filters unwanted compoents based on setting from processor profile"""
 
-        components = [c for c in components if c.area / frame_area >=
-                      self._profile.min_area_percent]
         components = [
-            c for c in components if self._profile.components_touch_edge or not c.touches_border]
+            c for c in components
+            if c.area / frame_area >= self._profile.min_area_percent
+        ]
+        components = [
+            c
+            for c in components
+            if self._profile.components_touch_edge or not c.touches_border
+        ]
 
         return components
+
+    def _extract_candidate_frames(
+        self,
+        packet: FramePacket,
+        frame: np.ndarray,
+        components: list[ComponentStats],
+    ) -> list[HandCandidateFrame]:
+        candidate_frames: list[HandCandidateFrame] = []
+        for candidate_index, component in enumerate(components):
+            candidate_frames.append(
+                HandCandidateFrame(
+                    frame_rgb=_extract_square_candidate_frame(
+                        frame=frame,
+                        bbox_xyxy=component.bbox_xyxy,
+                        output_size_px=self._config.candidate_frame_size_px,
+                    ),
+                    timestamp_ms=packet.timestamp_ms,
+                    source_frame_index=packet.frame_index,
+                    source_id=packet.source_id,
+                    candidate_index=candidate_index,
+                    bbox_xyxy_px=component.bbox_xyxy,
+                )
+            )
+        return candidate_frames
+
+    def _enqueue_candidate_frames(
+        self,
+        candidate_frames: list[HandCandidateFrame],
+    ) -> None:
+        for candidate_frame in candidate_frames:
+            if len(self._candidate_buffer) == self._config.candidate_buffer_size:
+                self._candidate_buffer_overwrites += 1
+            self._candidate_buffer.append(candidate_frame)
+
+    def _pop_next_candidate(self) -> HandCandidateFrame | None:
+        if not self._candidate_buffer:
+            return None
+        return self._candidate_buffer.popleft()
 
 
 def pipeline_result_to_hand_result(
     result: PipelineFrameResult,
 ) -> HandFrameResult:
     """Phase 4 handoff seam converting pipeline output to HandFrameResult."""
-    if result.candidates == []:
+    if result.candidate_frames == []:
         return HandFrameResult(
             status=ResultStatus.NO_HAND,
             timestamp_ms=result.timestamp_ms,
-            candidates_bbox_px=[]
+            candidates=[],
         )
-
-    candidate_bbox = list(
-        map(lambda candidate: candidate.bbox_xyxy, result.candidates))
 
     return HandFrameResult(
         status=ResultStatus.OK,
         timestamp_ms=result.timestamp_ms,
-        candidates_bbox_px=candidate_bbox
+        candidates=list(result.candidate_frames),
     )
 
 
@@ -189,3 +255,62 @@ def _validate_frame(frame: np.ndarray) -> np.ndarray:
     if arr.dtype != np.uint8:
         arr = arr.astype(np.uint8)
     return arr
+
+
+def _extract_square_candidate_frame(
+    frame: np.ndarray,
+    bbox_xyxy: tuple[int, int, int, int],
+    output_size_px: int,
+) -> np.ndarray:
+    x0, y0, x1, y1 = bbox_xyxy
+    if x1 < x0 or y1 < y0:
+        raise ValueError("Candidate bbox must have non-negative width and height.")
+
+    width = x1 - x0 + 1
+    height = y1 - y0 + 1
+    side = max(width, height)
+
+    pad_x = side - width
+    pad_y = side - height
+
+    square_x0 = x0 - (pad_x // 2)
+    square_x1 = x1 + (pad_x - (pad_x // 2))
+    square_y0 = y0 - (pad_y // 2)
+    square_y1 = y1 + (pad_y - (pad_y // 2))
+
+    square_frame = np.zeros((side, side, 3), dtype=np.uint8)
+    frame_height, frame_width = frame.shape[:2]
+
+    clip_x0 = max(0, square_x0)
+    clip_y0 = max(0, square_y0)
+    clip_x1 = min(frame_width - 1, square_x1)
+    clip_y1 = min(frame_height - 1, square_y1)
+
+    if clip_x0 <= clip_x1 and clip_y0 <= clip_y1:
+        dest_x0 = clip_x0 - square_x0
+        dest_y0 = clip_y0 - square_y0
+        dest_x1 = dest_x0 + (clip_x1 - clip_x0 + 1)
+        dest_y1 = dest_y0 + (clip_y1 - clip_y0 + 1)
+        square_frame[dest_y0:dest_y1, dest_x0:dest_x1] = frame[
+            clip_y0:clip_y1 + 1,
+            clip_x0:clip_x1 + 1,
+        ]
+
+    if side == output_size_px:
+        return square_frame
+
+    interpolation = _resize_interpolation(
+        source_size_px=side,
+        target_size_px=output_size_px,
+    )
+    return cv2.resize(
+        square_frame,
+        (output_size_px, output_size_px),
+        interpolation=interpolation,
+    )
+
+
+def _resize_interpolation(source_size_px: int, target_size_px: int) -> int:
+    if target_size_px < source_size_px:
+        return cv2.INTER_AREA
+    return cv2.INTER_LINEAR
