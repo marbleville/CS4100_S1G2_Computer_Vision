@@ -1,9 +1,10 @@
 """Types for preprocessing pipeline outputs."""
 
 from dataclasses import dataclass, field
-from preprocessor.pipeline.components import ComponentStats
-
 import numpy as np
+
+from preprocessor.pipeline.components import ComponentStats
+from preprocessor.types.results import HandCandidateFrame
 
 
 @dataclass(slots=True)
@@ -14,4 +15,5 @@ class PipelineFrameResult:
     frame_index: int
     mask: np.ndarray
     candidates: list[ComponentStats]
+    candidate_frames: list[HandCandidateFrame]
     debug: dict[str, float | int | str] = field(default_factory=dict)
