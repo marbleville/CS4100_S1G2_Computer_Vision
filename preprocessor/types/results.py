@@ -43,5 +43,5 @@ class HandDetectionResult:
     # 128x128 RGB crop of the detected hand region, cut from the full webcam frame
     # and resized to a fixed size by Module B — this is what the CNN runs inference on
     crop_rgb: np.ndarray  # shape (128, 128, 3), dtype uint8
-    bbox: tuple[int, int, int, int] | None = None  # (x, y, width, height)
     timestamp_ms: int 
+    bbox: tuple[int, int, int, int] | None = None  # (x, y, width, height)
