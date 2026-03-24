@@ -8,3 +8,5 @@ pillow==12.1.1
 pluggy==1.6.0
 pygments==2.19.2
 pytest==9.0.2
+torch>=2.0.0
+torchvision>=0.15.0
