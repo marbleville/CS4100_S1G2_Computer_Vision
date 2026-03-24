@@ -12,11 +12,15 @@ Key design decisions:
        proportion in every split.
 
     2. GROUPED by subject — all images from a given subject land in
+<<<<<<< module-a-add-manifests
        the SAME split. This prevents the model from memorizing a
        specific person's hand and then being "tested" on that same
        person (which inflates accuracy unfairly). This is called
        "data leakage" and it's one of the most common mistakes in
        ML projects.
+=======
+       the SAME split.
+>>>>>>> main
 
     3. REPRODUCIBLE — uses a fixed random seed (42) so every
        teammate gets the exact same split when they run this script.
@@ -113,7 +117,11 @@ def _split_by_subject(rows: list[dict[str, str]], rng: random.Random) -> None:
     5. Last 15% → test
     6. Every image from a subject goes to that subject's split
 
+<<<<<<< module-a-add-manifests
     This is critical because without it, the model could see the same
+=======
+    without this segment, the model could see the same
+>>>>>>> main
     person's hand in training AND in test, which makes test accuracy
     misleadingly high.
     """
