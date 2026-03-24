@@ -47,7 +47,7 @@ def record_video(recording_dir):
 
 # prompt user for which type of video they're recording
 def get_folder():
-    print("Enter video type selection\n 0 - swipe right\n 1 - swipe left")
+    print("Enter video type selection\n 0 - swipe right\n 1 - swipe left\n 2 - no swipe")
     while True:
         entry = input()
         match entry:
@@ -55,6 +55,8 @@ def get_folder():
                 return 'right_swipe'
             case "1":
                 return 'left_swipe'
+            case "2":
+                return 'no_swipe'
         print("Command not recognized, try again")
 
 
