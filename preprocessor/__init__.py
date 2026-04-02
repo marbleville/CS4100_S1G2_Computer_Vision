@@ -1,6 +1,10 @@
 """Public API for the preprocessor package."""
 
-from preprocessor.config.types import PreprocessorConfig
+from preprocessor.config.types import (
+    LightingSwitchConfig,
+    PreprocessorConfig,
+    SkinFusionProfile,
+)
 from preprocessor.io.base import FrameSource
 from preprocessor.io.factory import build_frame_source
 from preprocessor.pipeline.processor import (
@@ -53,6 +57,8 @@ def init_preprocessor(config: PreprocessorConfig) -> Preprocessor:
 __all__ = [
     "Preprocessor",
     "PreprocessorConfig",
+    "SkinFusionProfile",
+    "LightingSwitchConfig",
     "ResultStatus",
     "HandCandidateFrame",
     "HandFrameResult",

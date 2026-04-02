@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from typing import Literal
 
 import cv2
 import numpy as np
 
-from preprocessor.config.types import PreprocessorConfig
+from preprocessor.config.types import PreprocessorConfig, SkinFusionProfile
 from preprocessor.io.types import FramePacket
 from preprocessor.pipeline.background import RunningBackgroundModel
 from preprocessor.pipeline.color import (
@@ -75,7 +76,7 @@ _PROFILE_MAP: dict[str, PipelineProfile] = {
         # 3x3 open/close removes tiny islands and fills tiny holes.
         morphology_kernel=3,
         min_area_percent=0.01,
-        components_touch_edge=False,
+        components_touch_edge=True,
         background_enabled=False,
         # If enabled: slow background update for stability.
         background_alpha=0.08,
@@ -91,6 +92,8 @@ class PreprocessingPipeline:
         self._config = config
         self._profile = _PROFILE_MAP.get(
             config.threshold_profile, _PROFILE_MAP["default"])
+        self._smoothed_luma: float | None = None
+        self._active_light_mode: Literal["normal", "low_light"] = "normal"
         self._prev_centroid: tuple[float, float] | None = None
         self._prev_bbox: tuple[int, int, int, int] | None = None
         self._prev_area: int | None = None
@@ -104,6 +107,8 @@ class PreprocessingPipeline:
         self._candidate_buffer_overwrites = 0
 
     def reset(self) -> None:
+        self._smoothed_luma = None
+        self._active_light_mode = "normal"
         self._prev_centroid = None
         self._prev_bbox = None
         self._prev_area = None
@@ -117,6 +122,8 @@ class PreprocessingPipeline:
         gray = rgb_to_grayscale(frame)
         hsv = rgb_to_hsv(frame)
         ycbcr = rgb_to_ycbcr(frame)
+        frame_median_luma = float(np.median(gray))
+        active_skin_profile = self._select_skin_profile(frame_median_luma)
 
         fg_score = None
         warmup = False
@@ -126,7 +133,11 @@ class PreprocessingPipeline:
                 fg_score = fg_score * 0.25
 
         score_map = fused_skin_confidence(
-            hsv, ycbcr, foreground_score=fg_score, fg_weight=0.20)
+            hsv,
+            ycbcr,
+            profile=active_skin_profile,
+            foreground_score=fg_score,
+        )
         score_map = gaussian_blur(
             score_map, kernel_size=self._profile.gaussian_kernel)
 
@@ -150,7 +161,8 @@ class PreprocessingPipeline:
         h, w = frame.shape[:2]
         frame_area = w * h
         components = self.filter_candidate_components(components, frame_area)
-        components = sorted(components, key=lambda candidate: candidate.area, reverse=True)
+        components = sorted(
+            components, key=lambda candidate: candidate.area, reverse=True)
         candidate_frames = self._extract_candidate_frames(
             packet=packet,
             frame=frame,
@@ -169,6 +181,9 @@ class PreprocessingPipeline:
                 "candidate_buffer_depth": len(self._candidate_buffer),
                 "candidate_buffer_overwrites": self._candidate_buffer_overwrites,
                 "candidate_frame_size_px": self._config.candidate_frame_size_px,
+                "active_light_mode": self._active_light_mode,
+                "frame_median_luma": frame_median_luma,
+                "smoothed_luma": float(self._smoothed_luma or frame_median_luma),
             },
         )
 
@@ -229,6 +244,36 @@ class PreprocessingPipeline:
             return None
         return self._candidate_buffer.popleft()
 
+    def _select_skin_profile(self, frame_median_luma: float) -> SkinFusionProfile:
+        lighting_switch = self._config.lighting_switch
+        previous_smoothed_luma = self._smoothed_luma
+        if previous_smoothed_luma is None:
+            self._smoothed_luma = frame_median_luma
+        else:
+            self._smoothed_luma = (
+                lighting_switch.ema_alpha * frame_median_luma
+                + (1.0 - lighting_switch.ema_alpha) * previous_smoothed_luma
+            )
+
+        if lighting_switch.mode == "normal":
+            self._active_light_mode = "normal"
+            return self._config.normal_skin_profile
+
+        if lighting_switch.mode == "low_light":
+            self._active_light_mode = "low_light"
+            return self._config.low_light_skin_profile
+
+        smoothed_luma = float(self._smoothed_luma)
+        if self._active_light_mode == "low_light":
+            if smoothed_luma > lighting_switch.exit_low_light_threshold:
+                self._active_light_mode = "normal"
+        elif smoothed_luma < lighting_switch.enter_low_light_threshold:
+            self._active_light_mode = "low_light"
+
+        if self._active_light_mode == "low_light":
+            return self._config.low_light_skin_profile
+        return self._config.normal_skin_profile
+
 
 def pipeline_result_to_hand_result(
     result: PipelineFrameResult,
@@ -264,7 +309,8 @@ def _extract_square_candidate_frame(
 ) -> np.ndarray:
     x0, y0, x1, y1 = bbox_xyxy
     if x1 < x0 or y1 < y0:
-        raise ValueError("Candidate bbox must have non-negative width and height.")
+        raise ValueError(
+            "Candidate bbox must have non-negative width and height.")
 
     width = x1 - x0 + 1
     height = y1 - y0 + 1
