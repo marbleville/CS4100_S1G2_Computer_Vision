@@ -156,7 +156,7 @@ class PreprocessingPipeline:
         mask = binary_close(mask, kernel_size=self._profile.morphology_kernel)
 
         _, components = connected_components(mask)
-        components = coalesce_components(components)
+        # components = coalesce_components(components)
 
         h, w = frame.shape[:2]
         frame_area = w * h

@@ -76,8 +76,8 @@ class LightingSwitchConfig:
     """Controls fixed or automatic selection between lighting profiles."""
 
     mode: LightingMode = "normal"
-    enter_low_light_threshold: float = 0.22
-    exit_low_light_threshold: float = 0.28
+    enter_low_light_threshold: float = 0.19
+    exit_low_light_threshold: float = 0.25
     ema_alpha: float = 0.25
 
     def __post_init__(self) -> None:
