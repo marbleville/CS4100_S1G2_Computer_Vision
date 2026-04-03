@@ -15,11 +15,11 @@ NUMERIC_EPSILON = 1e-6
 # - `sigma` widens/narrows acceptance around that center.
 # Channel ranges are normalized to [0, 1].
 SKIN_PRIOR_GAUSSIANS: dict[str, tuple[float, float]] = {
-    "hue": (0.08, 0.08),
-    "saturation": (0.45, 0.22),
-    "value": (0.65, 0.25),
-    "cb": (0.46, 0.10),
-    "cr": (0.62, 0.10),
+    "hue": (0.08, 0.02),
+    "saturation": (0.48, 0.2),
+    "value": (0.65, 0.23),
+    "cb": (0.46, 0.1),
+    "cr": (0.66, 0.1),
 }
 
 # Weighted contribution of each cue to base skin confidence.
@@ -29,7 +29,7 @@ SKIN_PRIOR_GAUSSIANS: dict[str, tuple[float, float]] = {
 SKIN_PRIOR_WEIGHTS: dict[str, float] = {
     "hue": 0.22,
     "saturation": 0.12,
-    "value": 0.10,
+    "value": 0.1,
     "cb": 0.28,
     "cr": 0.28,
 }
@@ -38,21 +38,21 @@ SKIN_PRIOR_WEIGHTS: dict[str, float] = {
 # Tuning guidance:
 # - Raise for static-camera scenes with clutter.
 # - Lower for camera motion or unstable backgrounds.
-DEFAULT_FOREGROUND_WEIGHT = 0.20
+DEFAULT_FOREGROUND_WEIGHT = 0.2
 
 LOW_LIGHT_SKIN_PRIOR_GAUSSIANS: dict[str, tuple[float, float]] = {
-    "hue": (0.08, 0.10),
+    "hue": (0.06, 0.1),
     "saturation": (0.35, 0.28),
-    "value": (0.42, 0.32),
-    "cb": (0.46, 0.12),
+    "value": (0.43, 0.32),
+    "cb": (0.46, 0.14),
     "cr": (0.62, 0.12),
 }
 
 LOW_LIGHT_SKIN_PRIOR_WEIGHTS: dict[str, float] = {
-    "hue": 0.20,
+    "hue": 0.15,
     "saturation": 0.16,
     "value": 0.18,
-    "cb": 0.23,
+    "cb": 0.205,
     "cr": 0.23,
 }
 
