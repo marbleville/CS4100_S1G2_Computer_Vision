@@ -14,17 +14,12 @@ from pathlib import Path
 from classifier.config import STATIC_GESTURE_CLASSES
 
 # Maps Module A's LeapGestRecog label names to our canonical gesture labels.
-# TODO: CONFIRM these mappings with Module A before training.
-# just rename the labels to be the same for consistency
 LABEL_MAP: dict[str, str] = {
+    "palm":       "palm",
+    "thumb":      "thumb",
+    "down":       "down",
     "fist":       "fist",
-    "fist_moved": "fist",        
-    "palm":       "open",        
-    "palm_moved": "open",        
-    "thumb":      "thumbs_up",   
-    "down":       "thumbs_down", 
 }
-
 
 def load_splits(
     manifest_path: str = "data/manifest_split.csv",

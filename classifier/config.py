@@ -4,15 +4,15 @@ Configuration for gesture classification and dataset handling.
 
 # List of static gesture class names 
 STATIC_GESTURE_CLASSES = [
-	"fist",         # play/pause
-	"open",         # fullscreen 
-	"thumbs_up",    # volume up 
-	"thumbs_down",  # volume down 
+	"palm",         # play/pause (open hand)
+	"thumb",        # increase volume (thumbs up) 
+	"down",    		# decrease volume (point down)
+	"fist",  		# mute/unmute (closed fist)
 ]
 
 DYNAMIC_GESTURE_CLASSES = [
-    "wave_left",    # previous video
-    "wave_right"    # next video 
+    "right_swipe" ,   # next video (swipe right)
+	"left_swipe",  	  # previous video (swipe left)
 ]
 
 ALL_GESTURE_CLASSES = STATIC_GESTURE_CLASSES + DYNAMIC_GESTURE_CLASSES
