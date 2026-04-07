@@ -20,21 +20,24 @@ def verify_split(manifest_path: Path, project_root: Path) -> bool:
 
     Returns:
         True if all checks pass, False if any issues found.
+
+    Raises:
+        FileNotFoundError: If the manifest file doesn't exist.
+        ValueError: If the manifest is empty.
     """
     if not manifest_path.exists():
-        print(f"ERROR: {manifest_path} not found.")
-        print("Run these scripts first, in order:")
-        print("  1. python -m dataset.download_datasets")
-        print("  2. python -m dataset.build_manifest")
-        print("  3. python -m dataset.split_data")
-        return False
+        raise FileNotFoundError(
+            f"{manifest_path} not found. Run these scripts first, in order:\n"
+            "  1. python -m dataset.download_datasets\n"
+            "  2. python -m dataset.build_manifest\n"
+            "  3. python -m dataset.split_data"
+        )
 
     with open(manifest_path, "r", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
     if not rows:
-        print("ERROR: Manifest is empty.")
-        return False
+        raise ValueError("Manifest is empty.")
 
     all_passed = True
 
