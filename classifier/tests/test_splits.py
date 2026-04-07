@@ -113,19 +113,21 @@ def test_all_output_labels_are_valid_gesture_classes(manifest_with_known_mapping
                 f"must be one of {STATIC_GESTURE_CLASSES}"
             )
 
-def test_no_raw_module_a_labels_in_output(manifest_with_known_mappings):
+def test_non_gesture_module_a_labels_not_in_output(manifest_with_known_mappings):
     """
-    Raw Module A labels like 'palm', 'thumb', 'down' must not appear in output.
-    Output must only contain our canonical labels.
+    Module A labels that are not part of our static gesture set must not appear.
+    palm, thumb, down, fist are our canonical labels and are expected in output.
+    Labels like fist_moved, palm_moved, l, ok, c, index are not in our gesture set.
     """
     splits = load_splits(manifest_with_known_mappings)
-    raw_labels = {"palm", "thumb", "down", "fist_moved", "palm_moved", "l", "ok", "c", "index"}
+    non_gesture_labels = {"fist_moved", "palm_moved", "l", "ok", "c", "index"}
     for split_name, records in splits.items():
         for record in records:
-            assert record["label"] not in raw_labels, (
-                f"Raw Module A label '{record['label']}' found in output — "
-                f"label mapping is not being applied"
+            assert record["label"] not in non_gesture_labels, (
+                f"Non-gesture label '{record['label']}' found in output — "
+                f"it should have been filtered out"
             )
+
 
 # Split assignment tests
 def test_train_rows_land_in_train(manifest_with_known_mappings):
