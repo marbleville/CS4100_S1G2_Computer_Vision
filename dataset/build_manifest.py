@@ -1,12 +1,11 @@
 """Build a manifest CSV cataloging every image/video in the dataset.
 
-Usage:
-    python -m dataset.build_manifest
 
 This scans two data sources and creates data/manifest.csv:
 
 1. data/raw/leapgestrecog/  — Kaggle static gesture images
    (downloaded by download_datasets.py)
+   Only includes gestures listed in gesture_map.STATIC_GESTURES.
 
 2. data/left_swipe/ and data/right_swipe/  — Team-recorded swipe
    videos (recorded by data/video_recorder.py)
@@ -18,11 +17,12 @@ scripts (splitting, training, evaluation) read from.
 import csv
 from pathlib import Path
 
+from dataset.gesture_map import STATIC_GESTURES, DYNAMIC_GESTURES
 
 
 # LeapGestRecog: maps folder names to clean gesture labels
-
-LEAPGESTRECOG_LABELS = {
+# Only gestures in STATIC_GESTURES are included.
+LEAPGESTRECOG_ALL_LABELS = {
     "01_palm": "palm",
     "02_l": "l",
     "03_fist": "fist",
@@ -35,12 +35,15 @@ LEAPGESTRECOG_LABELS = {
     "10_down": "down",
 }
 
-# Team-recorded swipe videos: maps folder names to gesture labels
-
-SWIPE_LABELS = {
-    "left_swipe": "left_swipe",
-    "right_swipe": "right_swipe",
+# Filter to only the gestures we're actually using
+LEAPGESTRECOG_LABELS = {
+    folder: label
+    for folder, label in LEAPGESTRECOG_ALL_LABELS.items()
+    if label in STATIC_GESTURES
 }
+
+# Team-recorded swipe videos: maps folder names to gesture labels
+SWIPE_LABELS = {name: name for name in DYNAMIC_GESTURES}
 
 # File extensions we recognize
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tiff"}
@@ -56,6 +59,9 @@ def build_manifest(project_root: Path, output_path: Path) -> int:
 
     Returns:
         Total number of samples cataloged.
+
+    Raises:
+        FileNotFoundError: If no data sources are found at all.
     """
     rows: list[dict[str, str]] = []
 
@@ -63,6 +69,7 @@ def build_manifest(project_root: Path, output_path: Path) -> int:
     leap_dir = project_root / "data" / "raw" / "leapgestrecog"
     if leap_dir.exists():
         print(f"Scanning LeapGestRecog at {leap_dir}...")
+        print(f"  Filtering to active gestures: {sorted(STATIC_GESTURES.keys())}")
         leap_rows = _scan_leapgestrecog(leap_dir, project_root)
         rows.extend(leap_rows)
         print(f"  Found {len(leap_rows)} images")
@@ -81,11 +88,11 @@ def build_manifest(project_root: Path, output_path: Path) -> int:
             print(f"  Found {len(swipe_rows)} videos")
 
     if not rows:
-        print("\nERROR: No data found at all.")
-        print("Make sure you have either:")
-        print("  - Downloaded LeapGestRecog (python -m dataset.download_datasets)")
-        print("  - Recorded swipe videos (python data/video_recorder.py)")
-        return 0
+        raise FileNotFoundError(
+            "No data found. Make sure you have either:\n"
+            "  - Downloaded LeapGestRecog (python -m dataset.download_datasets)\n"
+            "  - Recorded swipe videos (python data/video_recorder.py)"
+        )
 
     # Sort for deterministic ordering
     rows.sort(key=lambda r: r["filepath"])
@@ -111,6 +118,10 @@ def _scan_leapgestrecog(
     leap_dir: Path, project_root: Path
 ) -> list[dict[str, str]]:
     """Scan the LeapGestRecog folder structure.
+
+    Only includes gesture classes listed in LEAPGESTRECOG_LABELS
+    (filtered by STATIC_GESTURES from gesture_map.py).
+    Skips unused gestures silently.
     """
     rows = []
 
@@ -126,7 +137,7 @@ def _scan_leapgestrecog(
 
             label = LEAPGESTRECOG_LABELS.get(gesture_dir.name)
             if label is None:
-                print(f"  WARNING: Unknown folder '{gesture_dir.name}' in subject {subject_id}")
+                # Either an unknown folder or a gesture we're not using — skip
                 continue
 
             for image_file in sorted(gesture_dir.iterdir()):
@@ -175,17 +186,16 @@ def _print_class_summary(rows: list[dict[str, str]]) -> None:
         source_counts[row["source"]] = source_counts.get(row["source"], 0) + 1
 
     print("\nClass Distribution:")
-    print("-" * 40)
-    print(f"{'Gesture':<20} {'Count':>8} {'Type':>8}")
-    print("-" * 40)
+    print("-" * 50)
+    print(f"{'Gesture':<18} {'Action':<18} {'Count':>8}")
+    print("-" * 50)
+
+    from dataset.gesture_map import ALL_GESTURE_ACTIONS
     for label in sorted(label_counts.keys()):
-        # Determine media type for this label
-        media = "image"
-        if label in SWIPE_LABELS.values():
-            media = "video"
-        print(f"{label:<20} {label_counts[label]:>8} {media:>8}")
-    print("-" * 40)
-    print(f"{'TOTAL':<20} {len(rows):>8}")
+        action = ALL_GESTURE_ACTIONS.get(label, "?")
+        print(f"{label:<18} {action:<18} {label_counts[label]:>8}")
+    print("-" * 50)
+    print(f"{'TOTAL':<37} {len(rows):>8}")
 
     print("\nBy Source:")
     for source, count in sorted(source_counts.items()):

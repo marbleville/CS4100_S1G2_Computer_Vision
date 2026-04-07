@@ -29,7 +29,7 @@ from collections import defaultdict
 from pathlib import Path
 
 
-# CONFIGURATION — Change these if your team decides differently
+# CONFIGURATION — change these values
 
 TRAIN_RATIO = 0.70   # 70% for training
 VAL_RATIO = 0.15     # 15% for validation
@@ -49,13 +49,23 @@ def split_manifest(manifest_path: Path, output_path: Path) -> None:
     - Team swipe videos (small count): We do a simple random split
       at the individual sample level, since we don't have enough
       samples or subjects for grouped splitting.
+
+    Raises:
+        FileNotFoundError: If the manifest file doesn't exist.
+        ValueError: If the manifest is empty.
     """
-    
+
     # Step 1: Read the manifest
+    if not manifest_path.exists():
+        raise FileNotFoundError(
+            f"{manifest_path} not found. Run build_manifest.py first."
+        )
+
     rows = _read_manifest(manifest_path)
     if not rows:
-        print("ERROR: Manifest is empty. Run build_manifest.py first.")
-        return
+        raise ValueError(
+            "Manifest is empty. Run build_manifest.py first."
+        )
 
     print(f"Read {len(rows)} samples from {manifest_path}")
 
@@ -109,9 +119,8 @@ def _split_by_subject(rows: list[dict[str, str]], rng: random.Random) -> None:
     5. Last 15% → test
     6. Every image from a subject goes to that subject's split
 
-    without this segment, the model could see the same
-    person's hand in training AND in test, which makes test accuracy
-    misleadingly high.
+    Without this, the model could see the same person's hand in
+    training AND in test, which makes test accuracy misleadingly high.
     """
     # Find all subjects
     subjects = sorted({r["subject"] for r in rows})
@@ -187,10 +196,15 @@ def _split_randomly(rows: list[dict[str, str]], rng: random.Random) -> None:
 
 
 def _read_manifest(path: Path) -> list[dict[str, str]]:
-    """Read manifest CSV into a list of dicts."""
+    """Read manifest CSV into a list of dicts.
+
+    Raises:
+        FileNotFoundError: If the manifest file doesn't exist.
+    """
     if not path.exists():
-        print(f"ERROR: {path} not found. Run build_manifest.py first.")
-        return []
+        raise FileNotFoundError(
+            f"{path} not found. Run build_manifest.py first."
+        )
 
     with open(path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)

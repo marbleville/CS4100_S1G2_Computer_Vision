@@ -4,7 +4,7 @@ Usage:
     python -m dataset.download_datasets
 
 This script downloads the LeapGestRecog dataset and copies it into
-data/raw/leapgestrecog/. only need to run this once
+data/raw/leapgestrecog/. Only need to run this once.
 
 Prerequisites:
     - pip install kagglehub
@@ -23,14 +23,18 @@ def download_leapgestrecog(destination: Path) -> None:
     - 10 gesture classes
     - 10 subjects (5 male, 5 female)
     - 200 images per gesture per subject
+
+    Raises:
+        ImportError: If kagglehub is not installed.
+        RuntimeError: If subject folders cannot be found in download.
     """
     try:
         import kagglehub
     except ImportError:
-        print("ERROR: kagglehub is not installed.")
-        print("Run:  pip install kagglehub")
-        print("  or: uv pip install kagglehub")
-        return
+        raise ImportError(
+            "kagglehub is not installed. "
+            "Run: pip install kagglehub"
+        )
 
     print("Downloading LeapGestRecog from Kaggle...")
     print("(This may take a while)\n")
@@ -46,9 +50,10 @@ def download_leapgestrecog(destination: Path) -> None:
     source_dir = _find_subject_folders(cached_path)
 
     if source_dir is None:
-        print(f"ERROR: Could not find subject folders (00, 01, ...) in {cached_path}")
-        print("Please check the download and manually copy the data.")
-        return
+        raise RuntimeError(
+            f"Could not find subject folders (00, 01, ...) in {cached_path}. "
+            "Please check the download and manually copy the data."
+        )
 
     # Copy to our project's data/raw/ folder
     destination.mkdir(parents=True, exist_ok=True)
