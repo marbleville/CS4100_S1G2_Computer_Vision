@@ -33,6 +33,14 @@ def extract_hand_mask(frames):
 
     return masks
 
+def process_frame(frame, subtractor, kernel):
+    mask = subtractor.apply(frame)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.dilate(mask, kernel, iterations=2)
+    return mask
+
+
 def verify_hand(frame, mask):
     # TODO: Use preprocessor to check if detected hand area overlaps with moving frames
     return True
@@ -84,11 +92,13 @@ def process_folder(folder_path, output_csv, n_bins=10):
         writer.writerows(obs_list)
 
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-process_folder(os.path.join(BASE_DIR, "data", "right_swipe"), 
-               os.path.join(BASE_DIR, "dynamic_classifier", "right.csv"))
-process_folder(os.path.join(BASE_DIR, "data", "left_swipe"),  
-               os.path.join(BASE_DIR, "dynamic_classifier", "left.csv"))
-process_folder(os.path.join(BASE_DIR, "data", "no_swipe"),  
-               os.path.join(BASE_DIR, "dynamic_classifier", "none.csv"))
+if __name__ == "main":
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    process_folder(os.path.join(BASE_DIR, "data", "right_swipe"), 
+                os.path.join(BASE_DIR, "dynamic_classifier", "right.csv"))
+    process_folder(os.path.join(BASE_DIR, "data", "left_swipe"),  
+                os.path.join(BASE_DIR, "dynamic_classifier", "left.csv"))
+    process_folder(os.path.join(BASE_DIR, "data", "no_swipe"),  
+                os.path.join(BASE_DIR, "dynamic_classifier", "none.csv"))
+    
 
