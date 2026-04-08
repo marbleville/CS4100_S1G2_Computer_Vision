@@ -15,33 +15,33 @@ from preprocessor.types.results import HandDetectionResult
 TARGET_CROP_SIZE = 128
 
 
-def candidate_to_detection(candidate: HandCandidateFrame) -> HandDetectionResult:
-    """
-    Convert a HandCandidateFrame from Module B into a HandDetectionResult for Module C.
+# def candidate_to_detection(candidate: HandCandidateFrame) -> HandDetectionResult:
+#     """
+#     Convert a HandCandidateFrame from Module B into a HandDetectionResult for Module C.
 
-    Resizes the crop to 128x128 if Module B's candidate_frame_size_px differs.
-    Sets hand_detected=True and confidence_level=1.0 since Module B does not provide
-    a confidence score — the CNN threshold in StaticClassifier handles filtering.
+#     Resizes the crop to 128x128 if Module B's candidate_frame_size_px differs.
+#     Sets hand_detected=True and confidence_level=1.0 since Module B does not provide
+#     a confidence score — the CNN threshold in StaticClassifier handles filtering.
 
-    Args:
-        candidate: HandCandidateFrame from Module B's preprocessing pipeline.
+#     Args:
+#         candidate: HandCandidateFrame from Module B's preprocessing pipeline.
 
-    Returns:
-        HandDetectionResult ready for StaticClassifier.classify().
-    """
-    crop = candidate.frame_rgb
+#     Returns:
+#         HandDetectionResult ready for StaticClassifier.classify().
+#     """
+#     crop = candidate.frame_rgb
 
-    # Resize if Module B crop size does not match CNN input size
-    if crop.shape[0] != TARGET_CROP_SIZE or crop.shape[1] != TARGET_CROP_SIZE:
-        pil = Image.fromarray(crop).resize(
-            (TARGET_CROP_SIZE, TARGET_CROP_SIZE), Image.Resampling.BILINEAR
-        )
-        crop = np.asarray(pil, dtype=np.uint8)
+#     # Resize if Module B crop size does not match CNN input size
+#     if crop.shape[0] != TARGET_CROP_SIZE or crop.shape[1] != TARGET_CROP_SIZE:
+#         pil = Image.fromarray(crop).resize(
+#             (TARGET_CROP_SIZE, TARGET_CROP_SIZE), Image.Resampling.BILINEAR
+#         )
+#         crop = np.asarray(pil, dtype=np.uint8)
 
-    return HandDetectionResult(
-        hand_detected=True,
-        confidence_level=1.0,
-        crop_rgb=crop,
-        timestamp_ms=candidate.timestamp_ms,
-        bbox=candidate.bbox_xyxy_px,
-    )
+#     return HandDetectionResult(
+#         hand_detected=True,
+#         confidence_level=1.0,
+#         crop_rgb=crop,
+#         timestamp_ms=candidate.timestamp_ms,
+#         bbox=candidate.bbox_xyxy_px,
+#     )

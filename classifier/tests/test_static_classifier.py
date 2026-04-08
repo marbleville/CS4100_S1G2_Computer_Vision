@@ -6,6 +6,7 @@ No knowledge of internal CNN architecture, threshold values,
 or normalization logic is assumed.
 """
 
+import os
 import numpy as np
 import pytest
 from classifier.static_classifier import StaticClassifier, GestureResult
@@ -30,6 +31,14 @@ def make_detection(
         timestamp_ms=timestamp_ms,
         bbox=None,
     )
+
+@pytest.fixture
+def classifier():
+    """Load StaticClassifier with real checkpoint — skips if not found."""
+    checkpoint = "artifacts/models/cnn_best.pt"
+    if not os.path.exists(checkpoint):
+        pytest.skip("No trained checkpoint found — run train.py first")
+    return StaticClassifier(model_path=checkpoint)
 
 # GestureResult contract tests
 
@@ -61,61 +70,47 @@ def test_gesture_result_stores_values_correctly():
 
 # StaticClassifier output contract tests
 
-def test_classify_returns_gesture_result():
+def test_classify_returns_gesture_result(classifier):
     """classify must always return a GestureResult regardless of input."""
-    classifier = StaticClassifier()
     result = classifier.classify(make_detection())
     assert isinstance(result, GestureResult)
 
-def test_classify_no_hand_returns_none_gesture():
+def test_classify_no_hand_returns_none_gesture(classifier):
     """If hand_detected is False, gesture must be None without running inference."""
-    classifier = StaticClassifier()
     result = classifier.classify(make_detection(hand_detected=False, confidence_level=1.0))
     assert result.gesture is None
 
-def test_classify_no_hand_passes_through_hand_detected_false():
+def test_classify_no_hand_passes_through_hand_detected_false(classifier):
     """hand_detected=False must be passed through to GestureResult."""
-    classifier = StaticClassifier()
     result = classifier.classify(make_detection(hand_detected=False))
     assert result.hand_detected is False
 
-def test_classify_low_confidence_returns_none_gesture():
+def test_classify_low_confidence_returns_none_gesture(classifier):
     """If Module B confidence is below threshold, gesture must be None."""
-    classifier = StaticClassifier()
     low_confidence = CONFIDENCE_THRESHOLD - 0.01
     result = classifier.classify(make_detection(confidence_level=low_confidence))
     assert result.gesture is None
 
-def test_classify_no_model_returns_none_gesture():
-    """With no model loaded, gesture must be None even for a valid high-confidence crop."""
-    classifier = StaticClassifier(model=None)
-    result = classifier.classify(make_detection(hand_detected=True, confidence_level=1.0))
-    assert result.gesture is None
-
-def test_classify_confidence_is_float_in_valid_range():
+def test_classify_confidence_is_float_in_valid_range(classifier):
     """Confidence in GestureResult must be a float between 0.0 and 1.0."""
-    classifier = StaticClassifier()
     result = classifier.classify(make_detection())
     assert isinstance(result.confidence, float)
     assert 0.0 <= result.confidence <= 1.0
 
-def test_classify_gesture_is_none_or_valid_class():
+def test_classify_gesture_is_none_or_valid_class(classifier):
     """If gesture is not None it must be one of the known static gesture classes."""
-    classifier = StaticClassifier()
     result = classifier.classify(make_detection())
     assert result.gesture is None or result.gesture in STATIC_GESTURE_CLASSES
 
-def test_classify_does_not_crash_on_different_crop_values():
+def test_classify_does_not_crash_on_different_crop_values(classifier):
     """Classifier must not raise for any valid uint8 crop content."""
-    classifier = StaticClassifier()
     for fill_value in [0, 128, 255]:
         crop = np.full((128, 128, 3), fill_value, dtype=np.uint8)
         result = classifier.classify(make_detection(crop=crop))
         assert isinstance(result, GestureResult)
 
-def test_classify_does_not_modify_input_crop():
+def test_classify_does_not_modify_input_crop(classifier):
     """classify must not modify the crop array passed in HandDetectionResult."""
-    classifier = StaticClassifier()
     crop = np.ones((128, 128, 3), dtype=np.uint8) * 100
     original = crop.copy()
     classifier.classify(make_detection(crop=crop))

@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from preprocessor.types.results import HandDetectionResult
+# from classifier.data.adapter import candidate_to_detection  
 from classifier.config import (
     CONFIDENCE_THRESHOLD,
     NORMALIZATION_MEAN,
@@ -14,6 +15,7 @@ from classifier.config import (
     STATIC_GESTURE_CLASSES,
 )
 from classifier.models.cnn import GestureCNN
+
 
 class GestureResult:
     """
@@ -79,8 +81,10 @@ class StaticClassifier:
             Normalized float32 array of shape (128, 128, 3).
         """
         img = crop_rgb.astype(np.float32) / 255.0
-        img = (img - NORMALIZATION_MEAN) / NORMALIZATION_STD
-        return img
+        mean = np.array(NORMALIZATION_MEAN, dtype=np.float32)
+        std = np.array(NORMALIZATION_STD, dtype=np.float32)
+        img = (img - mean) / std
+        return img.astype(np.float32)
 
     def _apply_threshold(
         self, probs: np.ndarray
@@ -131,7 +135,7 @@ class StaticClassifier:
         # Convert to tensor (1, 3, 128, 128)
         tensor = torch.from_numpy(
             processed.transpose(2, 0, 1)
-        ).unsqueeze(0).to(self.device)
+        ).unsqueeze(0).float().to(self.device)
 
         with torch.no_grad():
             logits = self.model(tensor)
