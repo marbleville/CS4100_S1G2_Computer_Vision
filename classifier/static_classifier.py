@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from preprocessor.types.results import HandDetectionResult
-# from classifier.data.adapter import candidate_to_detection  
+from classifier.data.adapter import candidate_to_detection
 from classifier.config import (
     CONFIDENCE_THRESHOLD,
     NORMALIZATION_MEAN,
