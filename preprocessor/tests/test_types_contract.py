@@ -1,29 +1,27 @@
-from pathlib import Path
+from __future__ import annotations
 
+import sys
+from pathlib import Path
+from types import ModuleType
+
+import numpy as np
 import preprocessor
+
 from preprocessor.config.types import PreprocessorConfig
-from preprocessor.types import HandFrameResult, MotionWindowResult, ResultStatus
+from preprocessor.io.types import FramePacket
+from preprocessor.types import HandCandidateFrame, HandFrameResult, ResultStatus
 
 
 def test_preprocessor_config_instantiation() -> None:
-    config = PreprocessorConfig(
-        buffer_size=8,
-        async_process=True,
-        input_mode="webcam",
-    )
-    assert config.buffer_size == 8
+    config = PreprocessorConfig(input_mode="webcam")
     assert config.input_mode == "webcam"
     assert config.frame_size == (640, 480)
+    assert config.candidate_frame_size_px == 128
+    assert config.candidate_buffer_size == 32
 
 
 def test_result_status_enum_coverage() -> None:
-    expected = {
-        "ok",
-        "no_hand",
-        "low_confidence",
-        "insufficient_history",
-        "error",
-    }
+    expected = {"ok", "no_hand", "error"}
     actual = {status.value for status in ResultStatus}
     assert actual == expected
 
@@ -32,44 +30,125 @@ def test_hand_result_supports_no_hand_shape() -> None:
     result = HandFrameResult(
         status=ResultStatus.NO_HAND,
         timestamp_ms=123456,
-        bbox_xyxy_norm=None,
-        centroid_xy_norm=None,
-        contour_points_norm=[],
-        quality_score=None,
+        candidates=[],
     )
     assert result.status == ResultStatus.NO_HAND
-    assert result.bbox_xyxy_norm is None
-    assert result.centroid_xy_norm is None
+    assert result.candidates == []
+    assert result.error_message is None
 
 
-def test_motion_result_supports_insufficient_history_shape() -> None:
-    result = MotionWindowResult(
-        status=ResultStatus.INSUFFICIENT_HISTORY,
-        timestamp_ms=123456,
-        window_size=0,
-        trajectory_xy_norm=[],
-        delta_x_px=0.0,
-        delta_y_px=0.0,
-        path_length_px=0.0,
-        motion_confidence=None,
+def test_preprocessor_batch_api_uses_source_and_pipeline(
+    monkeypatch,
+) -> None:
+    packet = FramePacket(
+        frame_index=0,
+        timestamp_ms=25,
+        frame_rgb=np.zeros((4, 4, 3), dtype=np.uint8),
+        source_id="webcam:0",
     )
-    assert result.status == ResultStatus.INSUFFICIENT_HISTORY
-    assert result.window_size == len(result.trajectory_xy_norm)
+    expected = HandFrameResult(
+        status=ResultStatus.OK,
+        timestamp_ms=25,
+        candidates=[],
+    )
+    fake_source = _FakeSource([packet])
+    fake_pipeline = _FakePipeline()
+    fake_processor = ModuleType("preprocessor.pipeline.processor")
+    fake_processor.PreprocessingPipeline = lambda config: fake_pipeline
+    fake_processor.pipeline_result_to_hand_result = lambda result: expected
+
+    import preprocessor.io.factory as factory
+
+    monkeypatch.setattr(factory, "build_frame_source", lambda config: fake_source)
+    monkeypatch.setitem(sys.modules, "preprocessor.pipeline.processor", fake_processor)
+
+    processor = preprocessor.Preprocessor(PreprocessorConfig(input_mode="webcam"))
+    result = processor.get_current_hand_candidates()
+
+    assert result is expected
+    assert fake_source.read_calls == 1
+    assert fake_pipeline.processed_packets == [packet]
 
 
-def test_contract_doc_and_public_exports_stay_aligned() -> None:
-    contract_path = Path(__file__).resolve().parents[1] / "contract.md"
-    contract_text = contract_path.read_text(encoding="utf-8")
+def test_preprocessor_next_drains_pipeline_queue(monkeypatch) -> None:
+    packet = FramePacket(
+        frame_index=3,
+        timestamp_ms=100,
+        frame_rgb=np.zeros((6, 6, 3), dtype=np.uint8),
+        source_id="webcam:0",
+    )
+    expected_candidate = HandCandidateFrame(
+        frame_rgb=np.zeros((8, 8, 3), dtype=np.uint8),
+        timestamp_ms=100,
+        source_frame_index=3,
+        source_id="webcam:0",
+        candidate_index=0,
+        bbox_xyxy_px=(0, 0, 5, 5),
+    )
+    fake_source = _FakeSource([packet, None])
+    fake_pipeline = _FakePipeline(next_candidates=[expected_candidate])
+    fake_processor = ModuleType("preprocessor.pipeline.processor")
+    fake_processor.PreprocessingPipeline = lambda config: fake_pipeline
+    fake_processor.pipeline_result_to_hand_result = lambda result: result
+
+    import preprocessor.io.factory as factory
+
+    monkeypatch.setattr(factory, "build_frame_source", lambda config: fake_source)
+    monkeypatch.setitem(sys.modules, "preprocessor.pipeline.processor", fake_processor)
+
+    processor = preprocessor.Preprocessor(PreprocessorConfig(input_mode="webcam"))
+
+    assert processor.next() is expected_candidate
+    assert processor.next() is None
+    assert fake_pipeline.processed_packets == [packet]
+
+
+def test_readme_and_public_exports_stay_aligned() -> None:
+    readme_path = Path(__file__).resolve().parents[1] / "README.md"
+    readme_text = readme_path.read_text(encoding="utf-8")
 
     documented_names = [
         "PreprocessorConfig",
+        "HandCandidateFrame",
         "HandFrameResult",
-        "MotionWindowResult",
         "ResultStatus",
         "init_preprocessor",
         "Preprocessor",
     ]
 
     for name in documented_names:
-        assert name in contract_text
+        assert name in readme_text
         assert hasattr(preprocessor, name)
+
+
+class _FakeSource:
+    def __init__(self, packets: list[FramePacket | None]) -> None:
+        self._packets = list(packets)
+        self.read_calls = 0
+
+    def open(self) -> None:
+        return None
+
+    def read(self) -> FramePacket | None:
+        self.read_calls += 1
+        if not self._packets:
+            return None
+        return self._packets.pop(0)
+
+    def close(self) -> None:
+        return None
+
+
+class _FakePipeline:
+    def __init__(self, next_candidates: list[HandCandidateFrame] | None = None) -> None:
+        self._queue = list(next_candidates or [])
+        self.processed_packets: list[FramePacket] = []
+
+    def process(self, packet: FramePacket) -> object:
+        self.processed_packets.append(packet)
+        return {"frame_index": packet.frame_index}
+
+    def _pop_next_candidate(self) -> HandCandidateFrame | None:
+        if not self._queue:
+            return None
+        return self._queue.pop(0)
