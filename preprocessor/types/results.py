@@ -4,7 +4,21 @@ import numpy as np
 
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from preprocessor.types.enums import ResultStatus
+
+
+@dataclass(slots=True)
+class HandCandidateFrame:
+    """Normalized image crop for one detected hand candidate."""
+
+    frame_rgb: np.ndarray
+    timestamp_ms: int
+    source_frame_index: int
+    source_id: str
+    candidate_index: int
+    bbox_xyxy_px: tuple[int, int, int, int]
 
 
 @dataclass(slots=True)
@@ -13,7 +27,7 @@ class HandFrameResult:
 
     status: ResultStatus
     timestamp_ms: int
-    candidates_bbox_px: list[tuple[int, int, int, int]]
+    candidates: list[HandCandidateFrame]
     error_message: str | None = None
 
 
