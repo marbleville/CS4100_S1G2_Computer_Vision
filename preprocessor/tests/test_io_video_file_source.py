@@ -12,9 +12,7 @@ from preprocessor.io.video_file_source import VideoFileFrameSource
 
 def _config(video_path: str | None = "/tmp/sample.mp4") -> PreprocessorConfig:
     return PreprocessorConfig(
-        buffer_size=8,
-        async_process=False,
-        input_mode="webcam",
+        input_mode="local_video",
         video_path=video_path,
         frame_size=(32, 24),
     )
@@ -33,8 +31,8 @@ def test_factory_with_video_path_builds_video_file_source() -> None:
     assert isinstance(source, VideoFileFrameSource)
 
 
-def test_factory_without_video_path_raises_not_implemented() -> None:
-    with pytest.raises(NotImplementedError):
+def test_factory_without_video_path_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="`video_path` is required"):
         build_frame_source(_config(video_path=None))
 
 

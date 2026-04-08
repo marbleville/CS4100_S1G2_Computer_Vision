@@ -11,12 +11,12 @@ or local video source and returns normalized candidate hand crops for downstream
 from preprocessor import init_preprocessor
 from preprocessor.config.types import PreprocessorConfig
 
-config = PreprocessorConfig(
+video_config = PreprocessorConfig(
     input_mode="local_video",
     video_path="path/to/video_file",
 )
 
-preprocessor = init_preprocessor(config)
+preprocessor = init_preprocessor(video_config)
 
 frame_result = preprocessor.get_current_hand_candidates()
 for candidate in frame_result.candidates:
@@ -26,6 +26,12 @@ for candidate in frame_result.candidates:
 next_candidate = preprocessor.next()
 if next_candidate is not None:
     print(next_candidate.source_frame_index, next_candidate.candidate_index)
+
+# Live webcam input uses the same API.
+webcam_preprocessor = init_preprocessor(
+    PreprocessorConfig(input_mode="webcam")
+)
+webcam_result = webcam_preprocessor.get_current_hand_candidates()
 
 ```
 
@@ -41,7 +47,7 @@ candidate queue.
 - `video_path: str | None = None`
 - `frame_size: tuple[int, int] = (640, 480)`
 - `threshold_profile: str = "default"`
-- `candidate_frame_size_px: int = 224`
+- `candidate_frame_size_px: int = 128`
 - `candidate_buffer_size: int = 32`
 
 ### `ResultStatus`
@@ -75,3 +81,4 @@ Required enum values:
   `candidate_frame_size_px x candidate_frame_size_px`.
 - The internal candidate buffer is FIFO and overwrites the oldest items when full.
 - `Preprocessor.next()` returns `None` only after the source is exhausted and the queue is empty.
+- Webcam mode reads from device `0`, timestamps frames from source-open time, and raises a runtime error if the camera cannot be opened or read.

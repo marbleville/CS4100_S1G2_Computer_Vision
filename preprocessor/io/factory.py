@@ -3,13 +3,13 @@
 from preprocessor.config.types import PreprocessorConfig
 from preprocessor.io.base import FrameSource
 from preprocessor.io.video_file_source import VideoFileFrameSource
+from preprocessor.io.webcam_source import WebcamFrameSource
 
 
 def build_frame_source(config: PreprocessorConfig) -> FrameSource:
-    """Build a frame source for the provided config.
-
-    Local video source takes precedence when `video_path` is provided.
-    """
-    if config.video_path and config.input_mode == "local_video":
+    """Build a frame source for the provided config."""
+    if config.input_mode == "webcam":
+        return WebcamFrameSource(config)
+    if config.input_mode == "local_video":
         return VideoFileFrameSource(config)
-    raise NotImplementedError("Only `video_path` is supported in Phase 2.")
+    raise ValueError(f"Unsupported input mode: {config.input_mode}.")

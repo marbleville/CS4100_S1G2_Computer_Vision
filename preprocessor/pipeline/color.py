@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
 
 from preprocessor.config.types import SKIN_PRIOR_KEYS, SkinFusionProfile
+
+try:
+    import cv2
+except ModuleNotFoundError:  # pragma: no cover - exercised in environments without OpenCV
+    cv2 = None
 
 NUMERIC_EPSILON = 1e-6
 
@@ -79,12 +83,14 @@ def build_default_low_light_skin_profile() -> SkinFusionProfile:
 
 def rgb_to_grayscale(frame_rgb: np.ndarray) -> np.ndarray:
     """Convert RGB uint8 image to grayscale float32 in [0, 1]."""
+    _require_cv2()
     gray_u8 = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2GRAY)
     return (gray_u8.astype(np.float32) / 255.0).astype(np.float32)
 
 
 def rgb_to_hsv(frame_rgb: np.ndarray) -> np.ndarray:
     """Convert RGB uint8 image to HSV float32 with channels in [0, 1]."""
+    _require_cv2()
     hsv_u8 = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2HSV)
     hsv = hsv_u8.astype(np.float32)
     # OpenCV HSV ranges: H [0,179], S [0,255], V [0,255]
@@ -96,6 +102,7 @@ def rgb_to_hsv(frame_rgb: np.ndarray) -> np.ndarray:
 
 def rgb_to_ycbcr(frame_rgb: np.ndarray) -> np.ndarray:
     """Convert RGB uint8 image to YCbCr float32 in [0, 1]-scaled channels."""
+    _require_cv2()
     # OpenCV returns YCrCb order; reorder to YCbCr to preserve contract.
     ycrcb_u8 = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2YCrCb).astype(np.float32)
     y = ycrcb_u8[:, :, 0] / 255.0
@@ -107,6 +114,13 @@ def rgb_to_ycbcr(frame_rgb: np.ndarray) -> np.ndarray:
 def _gaussian_membership(x: np.ndarray, mean: float, sigma: float) -> np.ndarray:
     sigma = max(sigma, NUMERIC_EPSILON)
     return np.exp(-0.5 * ((x - mean) / sigma) ** 2).astype(np.float32)
+
+
+def _require_cv2() -> None:
+    if cv2 is None:
+        raise RuntimeError(
+            "OpenCV is required for color-space conversion but is not installed."
+        )
 
 
 def fused_skin_confidence(

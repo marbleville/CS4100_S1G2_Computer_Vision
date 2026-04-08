@@ -1,16 +1,13 @@
 """Public API for the preprocessor package."""
 
+from __future__ import annotations
+
 from preprocessor.config.types import (
     LightingSwitchConfig,
     PreprocessorConfig,
     SkinFusionProfile,
 )
 from preprocessor.io.base import FrameSource
-from preprocessor.io.factory import build_frame_source
-from preprocessor.pipeline.processor import (
-    PreprocessingPipeline,
-    pipeline_result_to_hand_result,
-)
 from preprocessor.types import HandCandidateFrame, HandFrameResult, ResultStatus
 
 
@@ -18,10 +15,15 @@ class Preprocessor:
     """Default preprocessor composition of source + pipeline."""
 
     def __init__(self, config: PreprocessorConfig) -> None:
+        from preprocessor.io.factory import build_frame_source
+        from preprocessor.pipeline.processor import PreprocessingPipeline
+
         self._source: FrameSource = build_frame_source(config)
-        self._pipeline = PreprocessingPipeline(config)
+        self._pipeline: PreprocessingPipeline = PreprocessingPipeline(config)
 
     def get_current_hand_candidates(self) -> HandFrameResult:
+        from preprocessor.pipeline.processor import pipeline_result_to_hand_result
+
         packet = self._source.read()
         if packet is None:
             return HandFrameResult(

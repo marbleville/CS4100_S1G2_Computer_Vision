@@ -10,8 +10,6 @@ from preprocessor.types.enums import ResultStatus
 
 def _config(profile: str = "default") -> PreprocessorConfig:
     return PreprocessorConfig(
-        buffer_size=8,
-        async_process=False,
         input_mode="webcam",
         threshold_profile=profile,
     )
