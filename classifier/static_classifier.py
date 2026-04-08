@@ -4,6 +4,8 @@ Runs the crop through the CNN, applies confidence thresholding, and returns a ge
 """
 
 import numpy as np
+import torch
+import torch.nn.functional as F
 from preprocessor.types.results import HandDetectionResult
 from classifier.config import (
     CONFIDENCE_THRESHOLD,
@@ -11,6 +13,7 @@ from classifier.config import (
     NORMALIZATION_STD,
     STATIC_GESTURE_CLASSES,
 )
+from classifier.models.cnn import GestureCNN
 
 class GestureResult:
     """
@@ -50,13 +53,17 @@ class StaticClassifier:
     applies confidence thresholding, and returns a GestureResult for Module E.
     """
 
-    def __init__(self, model=None):
+    def __init__(self, model_path: str = "artifacts/models/cnn_best.pt"):
         """
         Args:
-            model: Trained CNN model. If None, classifier is in placeholder mode
-                   and will return no gesture until a model is loaded.
+            model_path: Path to trained CNN checkpoint. Loads model into
+                        eval mode ready for inference.
         """
-        self.model = model
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = GestureCNN(num_classes=len(STATIC_GESTURE_CLASSES))
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.model.to(self.device)
+        self.model.eval()
 
     def _preprocess(self, crop_rgb: np.ndarray) -> np.ndarray:
         """
@@ -115,32 +122,26 @@ class StaticClassifier:
                 gesture=None,
                 confidence=detection.confidence_level,
                 hand_detected=detection.hand_detected,
-                timestamp_ms=0,
+                timestamp_ms=detection.timestamp_ms,
             )
 
-        # Guard: no model loaded yet
-        if self.model is None:
-            return GestureResult(
-                gesture=None,
-                confidence=0.0,
-                hand_detected=detection.hand_detected,
-                timestamp_ms=0,
-            )
-
-        # Preprocess crop and run inference
+        # Preprocess crop and run CNN inference
         processed = self._preprocess(detection.crop_rgb)
 
-        # TODO: replace with actual CNN forward pass once model is wired in
-        # probs = self.model.predict(processed)
-        # gesture, confidence = self._apply_threshold(probs)
+        # Convert to tensor (1, 3, 128, 128)
+        tensor = torch.from_numpy(
+            processed.transpose(2, 0, 1)
+        ).unsqueeze(0).to(self.device)
 
-        # Placeholder until CNN is connected
-        gesture = None
-        confidence = 0.0
+        with torch.no_grad():
+            logits = self.model(tensor)
+            probs = F.softmax(logits, dim=1).squeeze(0).cpu().numpy()
+
+        gesture, confidence = self._apply_threshold(probs)
 
         return GestureResult(
             gesture=gesture,
             confidence=confidence,
             hand_detected=detection.hand_detected,
-            timestamp_ms=0,
+            timestamp_ms=detection.timestamp_ms,
         )

@@ -22,8 +22,8 @@ HAND_CROP_SIZE = 128
 
 # Normalization constants 
 # Replace with computed values once ran separately on actual dataset 
-NORMALIZATION_MEAN = [0.485, 0.456, 0.406] # examples
-NORMALIZATION_STD = [0.229, 0.224, 0.225]  # examples
+NORMALIZATION_MEAN = [0.107, 0.107, 0.107]
+NORMALIZATION_STD = [0.2195, 0.2195, 0.2195]
 
 # Confidence threshold for predictions 
 CONFIDENCE_THRESHOLD = 0.75
