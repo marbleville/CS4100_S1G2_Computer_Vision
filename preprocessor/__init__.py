@@ -8,6 +8,7 @@ from preprocessor.config.types import (
     SkinFusionProfile,
 )
 from preprocessor.io.base import FrameSource
+from preprocessor.io.types import FramePacket
 from preprocessor.types import HandCandidateFrame, HandFrameResult, ResultStatus
 
 
@@ -49,6 +50,9 @@ class Preprocessor:
             candidate = self._pipeline._pop_next_candidate()
             if candidate is not None:
                 return candidate
+
+    def next_full_frame(self) -> FramePacket | None:
+        return self._source.read()
 
 
 def init_preprocessor(config: PreprocessorConfig) -> Preprocessor:
