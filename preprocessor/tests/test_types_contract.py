@@ -6,6 +6,7 @@ from types import ModuleType
 
 import numpy as np
 import preprocessor
+import pytest
 
 from preprocessor.config.types import PreprocessorConfig
 from preprocessor.io.types import FramePacket
@@ -15,9 +16,15 @@ from preprocessor.types import HandCandidateFrame, HandFrameResult, ResultStatus
 def test_preprocessor_config_instantiation() -> None:
     config = PreprocessorConfig(input_mode="webcam")
     assert config.input_mode == "webcam"
+    assert config.camera_device is None
     assert config.frame_size == (640, 480)
     assert config.candidate_frame_size_px == 128
     assert config.candidate_buffer_size == 32
+
+
+def test_preprocessor_config_rejects_negative_camera_device() -> None:
+    with pytest.raises(ValueError, match="camera_device"):
+        PreprocessorConfig(input_mode="webcam", camera_device=-1)
 
 
 def test_result_status_enum_coverage() -> None:
@@ -119,6 +126,9 @@ def test_readme_and_public_exports_stay_aligned() -> None:
     for name in documented_names:
         assert name in readme_text
         assert hasattr(preprocessor, name)
+
+    assert "camera_device" in readme_text
+    assert "first readable camera" in readme_text
 
 
 class _FakeSource:
