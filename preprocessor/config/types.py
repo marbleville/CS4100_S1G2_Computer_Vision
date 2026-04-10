@@ -123,6 +123,7 @@ class PreprocessorConfig:
 
     input_mode: Literal["webcam", "local_video"]
     video_path: str | None = None
+    camera_device: int | None = None
     frame_size: tuple[int, int] = (640, 480)
     threshold_profile: str = "default"
     candidate_frame_size_px: int = 128
@@ -141,6 +142,17 @@ class PreprocessorConfig:
         frame_width, frame_height = self.frame_size
         if frame_width <= 0 or frame_height <= 0:
             raise ValueError("`frame_size` dimensions must be positive.")
+        if self.camera_device is not None:
+            if isinstance(self.camera_device, bool) or not isinstance(
+                self.camera_device, int
+            ):
+                raise ValueError(
+                    "`camera_device` must be a non-negative integer or None."
+                )
+            if self.camera_device < 0:
+                raise ValueError(
+                    "`camera_device` must be a non-negative integer or None."
+                )
         if self.candidate_frame_size_px <= 0:
             raise ValueError("`candidate_frame_size_px` must be positive.")
         if self.candidate_buffer_size <= 0:
