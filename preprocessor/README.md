@@ -33,6 +33,11 @@ webcam_preprocessor = init_preprocessor(
 )
 webcam_result = webcam_preprocessor.get_current_hand_candidates()
 
+# Optionally pin a specific camera device instead of auto-detecting.
+debug_preprocessor = init_preprocessor(
+    PreprocessorConfig(input_mode="webcam", camera_device=2)
+)
+
 ```
 
 Use `get_current_hand_candidates()` and `next()` as separate access patterns. The batch API
@@ -45,6 +50,7 @@ candidate queue.
 
 - `input_mode: Literal["webcam", "local_video"]`
 - `video_path: str | None = None`
+- `camera_device: int | None = None`
 - `frame_size: tuple[int, int] = (640, 480)`
 - `threshold_profile: str = "default"`
 - `candidate_frame_size_px: int = 128`
@@ -81,4 +87,7 @@ Required enum values:
   `candidate_frame_size_px x candidate_frame_size_px`.
 - The internal candidate buffer is FIFO and overwrites the oldest items when full.
 - `Preprocessor.next()` returns `None` only after the source is exhausted and the queue is empty.
-- Webcam mode reads from device `0`, timestamps frames from source-open time, and raises a runtime error if the camera cannot be opened or read.
+- Webcam mode auto-detects the first readable camera in device indices `0..5` when `camera_device` is `None`.
+- Setting `camera_device` pins webcam mode to that device and disables fallback to other indices.
+- Webcam timestamps are measured from source-open time, and webcam packets use `source_id="webcam:<resolved_device_index>"`.
+- Webcam mode raises a runtime error if the configured camera cannot be opened or read, or if auto-detection finds no readable device.

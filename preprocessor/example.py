@@ -52,8 +52,8 @@ def _video_config_for(file_name: str) -> PreprocessorConfig:
     )
 
 
-def _webcam_config() -> PreprocessorConfig:
-    return PreprocessorConfig(input_mode="webcam")
+def _webcam_config(camera_device: int | None = None) -> PreprocessorConfig:
+    return PreprocessorConfig(input_mode="webcam", camera_device=camera_device)
 
 
 def demo_video_batch_api(file_name: str) -> None:
@@ -102,8 +102,11 @@ def demo_video_stream_api(file_name: str) -> None:
         candidate = preprocessor.next()
 
 
-def demo_webcam_stream_api(max_candidates: int = MAX_STREAM_CANDIDATES) -> None:
-    preprocessor = init_preprocessor(_webcam_config())
+def demo_webcam_stream_api(
+    max_candidates: int = MAX_STREAM_CANDIDATES,
+    camera_device: int | None = None,
+) -> None:
+    preprocessor = init_preprocessor(_webcam_config(camera_device))
 
     count = 0
     candidate = preprocessor.next()
@@ -118,8 +121,11 @@ def demo_webcam_stream_api(max_candidates: int = MAX_STREAM_CANDIDATES) -> None:
         candidate = preprocessor.next()
 
 
-def demo_webcam_batch_api(frame_count: int = DEFAULT_WEBCAM_BATCH_FRAMES) -> None:
-    config = _webcam_config()
+def demo_webcam_batch_api(
+    frame_count: int = DEFAULT_WEBCAM_BATCH_FRAMES,
+    camera_device: int | None = None,
+) -> None:
+    config = _webcam_config(camera_device)
     source = build_frame_source(config)
     pipeline = PreprocessingPipeline(config)
     output_dir = OUTPUT_ROOT / "webcam"
@@ -214,7 +220,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--mode",
         choices=("videos", "images", "webcam", "all"),
         default="all",
-        help="Which demos to run. `webcam` uses the onboard camera.",
+        help=(
+            "Which demos to run. `webcam` uses an auto-detected camera unless "
+            "`--camera-device` is set."
+        ),
     )
     parser.add_argument(
         "--image-dir",
@@ -227,6 +236,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_WEBCAM_BATCH_FRAMES,
         help="Number of webcam frames to process and save in batch mode.",
     )
+    parser.add_argument(
+        "--camera-device",
+        type=int,
+        default=None,
+        help=(
+            "Optional webcam device index override. Defaults to auto-detecting "
+            "the first readable camera."
+        ),
+    )
     return parser
 
 
@@ -237,7 +255,10 @@ def main() -> int:
     if args.mode in {"images", "all"}:
         run_image_demos(Path(args.image_dir))
     if args.mode == "webcam":
-        demo_webcam_batch_api(frame_count=args.webcam_frames)
+        demo_webcam_batch_api(
+            frame_count=args.webcam_frames,
+            camera_device=args.camera_device,
+        )
     return 0
 
 
