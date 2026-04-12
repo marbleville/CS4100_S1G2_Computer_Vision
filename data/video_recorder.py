@@ -52,11 +52,11 @@ def get_folder():
         entry = input()
         match entry:
             case "0":
-                return 'right_swipe'
+                return 'test_right_swipe'
             case "1":
-                return 'left_swipe'
+                return 'test_left_swipe'
             case "2":
-                return 'no_swipe'
+                return 'test_no_swipe'
         print("Command not recognized, try again")
 
 
