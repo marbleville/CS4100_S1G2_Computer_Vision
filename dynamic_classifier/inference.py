@@ -37,7 +37,7 @@ def classify(obs_window, hmm_right, hmm_left, hmm_none):
     labels = ["right", "left", "none"]
     return labels[i], float(probs[i])
 
-'''
+
 def run_webcam(hmm_right, hmm_left, hmm_none, n_bins=10, window_size=20):
     cap = cv2.VideoCapture(0)
     subtractor = cv2.createBackgroundSubtractorMOG2(history=10, varThreshold=25, detectShadows=False)
@@ -90,7 +90,7 @@ def run_webcam(hmm_right, hmm_left, hmm_none, n_bins=10, window_size=20):
     cap.release()
     cv2.destroyAllWindows()
     listener.stop()
-    '''
+
 
 class GestureClassifier:
     def __init__(self, window_size=20):
@@ -132,6 +132,8 @@ class GestureClassifier:
             self.obs_buffer.pop(0)
 
         result, confidence = classify(self.obs_buffer, self.hmm_left, self.hmm_right, self.hmm_none)
+        if result is None:
+            return None, 0.0
         return RESULT_MAP[result], confidence
 
 
