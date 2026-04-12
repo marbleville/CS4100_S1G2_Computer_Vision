@@ -17,17 +17,18 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in environments with
 
 
 class WebcamFrameSource:
-    """Pull-based frame source backed by the default webcam device."""
+    """Pull-based frame source backed by an explicit or auto-detected webcam."""
 
-    _DEVICE_INDEX = 0
+    _AUTO_DETECT_MAX_DEVICE_INDEX = 5
 
     def __init__(self, config: PreprocessorConfig) -> None:
         self._config = config
         self._capture: object | None = None
+        self._prefetched_frame: np.ndarray | None = None
+        self._resolved_device_index: int | None = None
         self._frame_index = 0
         self._opened_at: float | None = None
         self._is_open = False
-        self._source_id = f"webcam:{self._DEVICE_INDEX}"
 
     def open(self) -> None:
         if self._is_open:
@@ -37,14 +38,16 @@ class WebcamFrameSource:
                 "OpenCV is required for webcam input but is not installed."
             )
 
-        capture = cv2.VideoCapture(self._DEVICE_INDEX)
-        if not capture.isOpened():
-            capture.release()
-            raise RuntimeError(
-                f"Failed to open webcam device {self._DEVICE_INDEX}."
-            )
+        configured_device = self._config.camera_device
+        if configured_device is None:
+            capture, raw_frame, device_index = self._auto_detect_device()
+        else:
+            capture, raw_frame = self._open_explicit_device(configured_device)
+            device_index = configured_device
 
         self._capture = capture
+        self._prefetched_frame = raw_frame
+        self._resolved_device_index = device_index
         self._frame_index = 0
         self._opened_at = time.monotonic()
         self._is_open = True
@@ -55,12 +58,16 @@ class WebcamFrameSource:
 
         assert self._capture is not None
         assert self._opened_at is not None
+        assert self._resolved_device_index is not None
 
-        ok, raw_frame = self._capture.read()
-        if not ok or raw_frame is None:
-            raise RuntimeError(
-                f"Failed to read frame from webcam device {self._DEVICE_INDEX}."
-            )
+        raw_frame = self._prefetched_frame
+        self._prefetched_frame = None
+        if raw_frame is None:
+            ok, raw_frame = self._capture.read()
+            if not ok or raw_frame is None:
+                raise RuntimeError(
+                    f"Failed to read frame from webcam device {self._resolved_device_index}."
+                )
 
         frame_rgb = self._normalize_frame(raw_frame)
         timestamp_ms = int(round((time.monotonic() - self._opened_at) * 1000))
@@ -68,7 +75,7 @@ class WebcamFrameSource:
             frame_index=self._frame_index,
             timestamp_ms=timestamp_ms,
             frame_rgb=frame_rgb,
-            source_id=self._source_id,
+            source_id=f"webcam:{self._resolved_device_index}",
         )
         self._frame_index += 1
         return packet
@@ -76,11 +83,48 @@ class WebcamFrameSource:
     def close(self) -> None:
         capture = self._capture
         self._capture = None
+        self._prefetched_frame = None
+        self._resolved_device_index = None
         self._frame_index = 0
         self._opened_at = None
         self._is_open = False
         if capture is not None:
             capture.release()
+
+    def _open_explicit_device(self, device_index: int) -> tuple[object, np.ndarray]:
+        assert cv2 is not None
+
+        capture = cv2.VideoCapture(device_index)
+        if not capture.isOpened():
+            capture.release()
+            raise RuntimeError(f"Failed to open webcam device {device_index}.")
+
+        ok, raw_frame = capture.read()
+        if not ok or raw_frame is None:
+            capture.release()
+            raise RuntimeError(f"Failed to read frame from webcam device {device_index}.")
+
+        return capture, raw_frame
+
+    def _auto_detect_device(self) -> tuple[object, np.ndarray, int]:
+        assert cv2 is not None
+
+        for device_index in range(self._AUTO_DETECT_MAX_DEVICE_INDEX + 1):
+            capture = cv2.VideoCapture(device_index)
+            if not capture.isOpened():
+                capture.release()
+                continue
+
+            ok, raw_frame = capture.read()
+            if ok and raw_frame is not None:
+                return capture, raw_frame, device_index
+
+            capture.release()
+
+        raise RuntimeError(
+            "No readable webcam device found in indices "
+            f"0..{self._AUTO_DETECT_MAX_DEVICE_INDEX}."
+        )
 
     def _normalize_frame(self, raw_frame: np.ndarray) -> np.ndarray:
         frame = np.asarray(raw_frame)

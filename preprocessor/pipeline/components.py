@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
+
+try:
+    import cv2
+except ModuleNotFoundError:  # pragma: no cover - exercised in environments without OpenCV
+    cv2 = None
 
 
 @dataclass(slots=True)
@@ -23,64 +27,47 @@ class ComponentStats:
 
 def connected_components(mask: np.ndarray) -> tuple[np.ndarray, list[ComponentStats]]:
     """Label connected components and compute stats (4-neighborhood)."""
-    binary = mask.astype(bool)
+    _require_cv2()
+    binary = np.ascontiguousarray(mask != 0, dtype=np.uint8)
+    if binary.size == 0:
+        return np.zeros(binary.shape, dtype=np.int32), []
+
     h, w = binary.shape
-    labels = np.zeros((h, w), dtype=np.int32)
-    stats: list[ComponentStats] = []
-    current_label = 0
-    neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    _, labels, raw_stats, centroids = cv2.connectedComponentsWithStats(
+        binary,
+        connectivity=4,
+        ltype=cv2.CV_32S,
+    )
 
-    for y in range(h):
-        for x in range(w):
-            if not binary[y, x] or labels[y, x] != 0:
-                continue
-            current_label += 1
-            q = deque([(y, x)])
-            labels[y, x] = current_label
-
-            area = 0
-            sum_x = 0.0
-            sum_y = 0.0
-            min_x, min_y = x, y
-            max_x, max_y = x, y
-            touches_border = False
-
-            while q:
-                cy, cx = q.popleft()
-                area += 1
-                sum_x += cx
-                sum_y += cy
-                min_x = min(min_x, cx)
-                min_y = min(min_y, cy)
-                max_x = max(max_x, cx)
-                max_y = max(max_y, cy)
-                if cy == 0 or cx == 0 or cy == h - 1 or cx == w - 1:
-                    touches_border = True
-                for dy, dx in neighbors:
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w and binary[ny, nx] and labels[ny, nx] == 0:
-                        labels[ny, nx] = current_label
-                        q.append((ny, nx))
-
-            width = max_x - min_x + 1
-            height = max_y - min_y + 1
-            bbox_area = float(width * height)
-            centroid = (sum_x / area, sum_y / area)
-            aspect_ratio = width / max(float(height), 1.0)
-            fill_ratio = area / max(bbox_area, 1.0)
-            stats.append(
-                ComponentStats(
-                    label=current_label,
-                    area=area,
-                    bbox_xyxy=(min_x, min_y, max_x, max_y),
-                    centroid_xy=centroid,
-                    aspect_ratio=aspect_ratio,
-                    fill_ratio=fill_ratio,
-                    touches_border=touches_border,
-                )
+    components: list[ComponentStats] = []
+    for label in range(1, raw_stats.shape[0]):
+        left, top, width, height, area = raw_stats[label]
+        max_x = left + width - 1
+        max_y = top + height - 1
+        bbox_area = float(width * height)
+        centroid_x, centroid_y = centroids[label]
+        components.append(
+            ComponentStats(
+                label=int(label),
+                area=int(area),
+                bbox_xyxy=(int(left), int(top), int(max_x), int(max_y)),
+                centroid_xy=(float(centroid_x), float(centroid_y)),
+                aspect_ratio=float(width / max(float(height), 1.0)),
+                fill_ratio=float(area / max(bbox_area, 1.0)),
+                touches_border=bool(
+                    left == 0 or top == 0 or max_x == w - 1 or max_y == h - 1
+                ),
             )
+        )
 
-    return labels, stats
+    return labels, components
+
+
+def _require_cv2() -> None:
+    if cv2 is None:
+        raise RuntimeError(
+            "OpenCV is required for connected-components labeling but is not installed."
+        )
 
 
 def coalesce_components(components: list[ComponentStats]) -> list[ComponentStats]:
