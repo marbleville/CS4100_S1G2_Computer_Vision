@@ -49,7 +49,8 @@ class HMM:
             beta[t] /= scale[t + 1]
         return beta
     
-    def baum_welch(self, data, n_iter=50):
+    def baum_welch(self, data, n_iter=50, print_output=False):
+        log_probs = []
         for _ in range(n_iter):
             pi_acc  = np.zeros(self.n)
             A_num   = np.zeros((self.n, self.n))
@@ -91,6 +92,16 @@ class HMM:
             self.pi = pi_acc / (pi_acc.sum() + 1e-300)          # + 1e-300 prevents division by 0
             self.A  = A_num / (A_den[:, np.newaxis] + 1e-300)
             self.B  = B_num / (B_den[:, np.newaxis] + 1e-300)
+
+            avg_log_prob = np.mean([
+                self.forward(seq)[0] for seq in data
+                if self.forward(seq)[0] is not None
+            ])
+            log_probs.append(avg_log_prob)
+
+            if (print_output):
+                print(f"Iter {_+1}: avg log prob = {avg_log_prob:.3f}")
+        return log_probs
 
 
 '''
