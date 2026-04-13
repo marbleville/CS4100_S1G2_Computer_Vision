@@ -26,7 +26,7 @@ from classifier.config import CONFIDENCE_THRESHOLD
 
 # Configuration                                                       
 
-CHECKPOINT_PATH = "artifacts/models/cnn_best.pt"
+CHECKPOINT_PATH = "classifier/models/weights/cnn_best.pt"
 FPS_WINDOW = 30       # number of recent frames to average FPS over
 MIN_CONFIDENCE = CONFIDENCE_THRESHOLD
 

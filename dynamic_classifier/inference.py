@@ -1,7 +1,7 @@
 import os
 import cv2
-import threading
-from pynput import keyboard
+#import threading
+#from pynput import keyboard
 from scipy.special import softmax
 import numpy as np
 from hmm import HMM
@@ -37,7 +37,7 @@ def classify(obs_window, hmm_right, hmm_left, hmm_none):
     labels = ["right", "left", "none"]
     return labels[i], float(probs[i])
 
-
+'''
 def run_webcam(hmm_right, hmm_left, hmm_none, n_bins=10, window_size=20):
     cap = cv2.VideoCapture(0)
     subtractor = cv2.createBackgroundSubtractorMOG2(history=10, varThreshold=25, detectShadows=False)
@@ -90,7 +90,7 @@ def run_webcam(hmm_right, hmm_left, hmm_none, n_bins=10, window_size=20):
     cap.release()
     cv2.destroyAllWindows()
     listener.stop()
-
+'''
 
 class GestureClassifier:
     def __init__(self, window_size=20):
@@ -144,5 +144,5 @@ if __name__ == "__main__":
     hmm_right = load_hmm(HMM(N_STATES, N_BINS), "right", BASE_DIR)
     hmm_none  = load_hmm(HMM(N_STATES, N_BINS), "none",  BASE_DIR)
 
-    run_webcam(hmm_left, hmm_right, hmm_none, N_BINS, WINDOW_SIZE)
+    #run_webcam(hmm_left, hmm_right, hmm_none, N_BINS, WINDOW_SIZE)
         

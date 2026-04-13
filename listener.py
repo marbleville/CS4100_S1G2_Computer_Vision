@@ -16,7 +16,7 @@ Then set LAPTOP_IP in main.py on the Pi to that address.
 import socket
 from command_engine.engine import ACTION_TO_KEY
 
-HOST = "0.0.0.0"  # listen on all interfaces
+HOST = "0.0.0.0"
 PORT = 5005
 
 
@@ -39,11 +39,15 @@ def main() -> None:
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((HOST, PORT))
     server.listen(1)
+    server.settimeout(1.0)
     print(f"Listening for Pi on port {PORT}. Press Ctrl+C to stop.")
 
     try:
         while True:
-            conn, addr = server.accept()
+            try:
+                conn, addr = server.accept()
+            except TimeoutError:
+                continue
             print(f"Pi connected from {addr}")
             with conn:
                 while True:
