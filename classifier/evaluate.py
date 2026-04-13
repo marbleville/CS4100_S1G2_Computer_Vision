@@ -28,7 +28,7 @@ from classifier.data.splits import load_splits, get_split_paths
 from classifier.train import GestureTrainDataset
 
 # Configuration                                                       
-CHECKPOINT_PATH = "artifacts/models/cnn_best.pt"
+CHECKPOINT_PATH = "classifier/models/weights/cnn_best.pt"
 MANIFEST_PATH = "data/manifest_split.csv"
 OUTPUT_DIR = "artifacts/eval"
 BATCH_SIZE = 64

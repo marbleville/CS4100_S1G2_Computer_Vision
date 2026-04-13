@@ -32,9 +32,7 @@ from classifier.data.splits import load_splits, get_split_paths
 from classifier.data.augmentation import AugmentationPipeline
 
 
-# ------------------------------------------------------------------ #
-# Configuration                                                        #
-# ------------------------------------------------------------------ #
+# Configuration                                                       
 
 LEARNING_RATE = 1e-4
 MAX_EPOCHS = 50
@@ -42,13 +40,11 @@ EARLY_STOPPING_PATIENCE = 5
 BATCH_SIZE = 64
 NUM_WORKERS = 0
 MANIFEST_PATH = "data/manifest_split.csv"
-CHECKPOINT_PATH = "artifacts/models/cnn_best.pt"
+CHECKPOINT_PATH = "classifier/models/weights/cnn_best.pt"
 LOG_PATH = "artifacts/models/training_log.json"
 
 
-# ------------------------------------------------------------------ #
-# Dataset                                                              #
-# ------------------------------------------------------------------ #
+# Dataset                                                             
 
 class GestureTrainDataset(Dataset):
     """
@@ -97,9 +93,7 @@ class GestureTrainDataset(Dataset):
         return tensor, label_idx
 
 
-# ------------------------------------------------------------------ #
-# Training loop                                                        #
-# ------------------------------------------------------------------ #
+# Training loop                                                       
 
 def train() -> None:
     """Run the full training loop with early stopping."""

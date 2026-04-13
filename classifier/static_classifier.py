@@ -55,7 +55,7 @@ class StaticClassifier:
     applies confidence thresholding, and returns a GestureResult for Module E.
     """
 
-    def __init__(self, model_path: str = "artifacts/models/cnn_best.pt"):
+    def __init__(self, model_path: str = "classifier/models/weights/cnn_best.pt"):
         """
         Args:
             model_path: Path to trained CNN checkpoint. Loads model into
