@@ -209,3 +209,4 @@ __marimo__/
 artifacts/
 data/raw/
 .DS_Store
+data/.DS_Store

@@ -1,5 +1,7 @@
 """Response/result dataclasses for preprocessor outputs."""
 
+import numpy as np
+
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -42,3 +44,18 @@ class MotionWindowResult:
     path_length_px: float = 0.0
     motion_confidence: float | None = None
     error_message: str | None = None
+
+
+# can redefine/change this but this would be an ideal 
+@dataclass(slots=True)
+class HandDetectionResult:
+    """
+    Output for static hand detection classifier.
+    """
+    hand_detected: bool  # if false, skip inference entirely
+    confidence_level: float
+    # 128x128 RGB crop of the detected hand region, cut from the full webcam frame
+    # and resized to a fixed size by Module B — this is what the CNN runs inference on
+    crop_rgb: np.ndarray  # shape (128, 128, 3), dtype uint8
+    timestamp_ms: int 
+    bbox: tuple[int, int, int, int] | None = None  # (x, y, width, height)

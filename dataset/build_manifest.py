@@ -87,6 +87,14 @@ def build_manifest(project_root: Path, output_path: Path) -> int:
             rows.extend(swipe_rows)
             print(f"  Found {len(swipe_rows)} videos")
 
+    # Source 3: Team-collected RGB webcam images
+    rgb_dir = project_root / "data" / "raw" / "rgb_webcam"
+    if rgb_dir.exists():
+        print(f"Scanning RGB webcam images at {rgb_dir}...")
+        rgb_rows = _scan_rgb_webcam(rgb_dir, project_root)
+        rows.extend(rgb_rows)
+        print(f"  Found {len(rgb_rows)} images")
+
     if not rows:
         raise FileNotFoundError(
             "No data found. Make sure you have either:\n"
@@ -176,6 +184,26 @@ def _scan_swipe_videos(
 
     return rows
 
+def _scan_rgb_webcam(
+    rgb_dir: Path, project_root: Path
+) -> list[dict[str, str]]:
+    """Scan team-collected RGB webcam gesture images."""
+    rows = []
+    for class_name in STATIC_GESTURES:
+        class_dir = rgb_dir / class_name
+        if not class_dir.is_dir():
+            continue
+        for image_file in sorted(class_dir.iterdir()):
+            if image_file.suffix.lower() in IMAGE_EXTENSIONS:
+                relative_path = image_file.relative_to(project_root)
+                rows.append({
+                    "filepath": str(relative_path),
+                    "label": class_name,
+                    "subject": "team_rgb",
+                    "source": "rgb_webcam",
+                    "media_type": "image",
+                })
+    return rows
 
 def _print_class_summary(rows: list[dict[str, str]]) -> None:
     """Print a summary table of samples per class."""
