@@ -21,9 +21,8 @@ ALL_GESTURE_CLASSES = STATIC_GESTURE_CLASSES + DYNAMIC_GESTURE_CLASSES
 HAND_CROP_SIZE = 128
 
 # Normalization constants 
-# Replace with computed values once ran separately on actual dataset 
-NORMALIZATION_MEAN = [0.107, 0.107, 0.107]
-NORMALIZATION_STD = [0.2195, 0.2195, 0.2195]
+NORMALIZATION_MEAN = [0.5725, 0.5252, 0.4866]
+NORMALIZATION_STD  = [0.2495, 0.2408, 0.2307]
 
 # Confidence threshold for predictions 
 CONFIDENCE_THRESHOLD = 0.75

@@ -37,7 +37,7 @@ def candidate_to_detection(candidate: HandCandidateFrame) -> HandDetectionResult
             (TARGET_CROP_SIZE, TARGET_CROP_SIZE), Image.Resampling.BILINEAR
         )
         crop = np.asarray(pil, dtype=np.uint8)
-
+    
     return HandDetectionResult(
         hand_detected=True,
         confidence_level=1.0,
