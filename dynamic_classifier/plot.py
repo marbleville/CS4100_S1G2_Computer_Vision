@@ -1,6 +1,11 @@
+"""
+Visualizes results from dynamic classifier training and testing.
+Produces training curves and confusion matrix graphs.
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Plots training probabilities over time
 def plot_training_curves(left_probs, right_probs, none_probs):
     plt.figure(figsize=(10, 5))
     plt.plot(left_probs,  label="HMM left")
@@ -14,6 +19,7 @@ def plot_training_curves(left_probs, right_probs, none_probs):
     plt.savefig("training_curves.png")
     plt.show()
 
+# Plots dynamic classifier confusion matrix from testing
 def plot_confusion_matrix(matrix):
     classes = ["left", "right", "none"]
     fig, ax = plt.subplots(figsize=(6, 5))

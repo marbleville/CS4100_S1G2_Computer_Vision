@@ -1,9 +1,14 @@
+"""
+Trains the left_swipe, right_swipe, and none HMMs on respective data from training videos.
+Saves the resulting models in the 'models' folder.
+"""
 import csv
 import os
 import numpy as np
 from hmm import HMM
 from plot import plot_training_curves
 
+# Get discretized training data from saves csv files
 def extract_data(file_path):
     out = []
     with open(file_path, mode='r') as file:
@@ -12,17 +17,20 @@ def extract_data(file_path):
             out.append([int(num) for num in row])
     return out
 
+# Save the resulting hmm in the 'models' folder
 def save_hmm(hmm, prefix, dir):
     np.save(os.path.join(dir, "models", f"{prefix}_pi.npy"), hmm.pi)
     np.save(os.path.join(dir, "models", f"{prefix}_A.npy"), hmm.A)
     np.save(os.path.join(dir, "models", f"{prefix}_B.npy"), hmm.B)
 
+# Load a specified HMM from the 'models' folder
 def load_hmm(hmm, prefix, dir):
     hmm.pi = np.load(os.path.join(dir, "models", f"{prefix}_pi.npy"))
     hmm.A  = np.load(os.path.join(dir, "models", f"{prefix}_A.npy"))
     hmm.B  = np.load(os.path.join(dir, "models", f"{prefix}_B.npy"))
     return hmm
 
+# Train the right_swipe, left_swipe, and none HMMs
 if __name__ == "__main__":
     N_STATES = 5
     N_BINS = 10

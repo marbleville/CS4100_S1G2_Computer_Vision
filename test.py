@@ -1,22 +1,21 @@
-"""Main entry point for gesture-controlled YouTube on Raspberry Pi.
+"""Main entry point for gesture-controlled YouTube.
+
+Runs locally on laptop — no Pi or socket needed.
 
 Wires together:
     - Preprocessor         (hand detection + cropping for static gestures)
     - StaticClassifier     (CNN-based static gesture recognition)
     - GestureClassifier    (HMM-based swipe detection)
     - CommandEngine        (debounce + cooldown + keypress)
-    - Socket sender        (sends actions to laptop over local network)
 
-Usage:
-    1. Find the laptop's local IP (ipconfig / ifconfig)
-    2. Set LAPTOP_IP below to that address
-    3. Run listener.py on the laptop
-    4. Run this script on the Pi
+Both classifiers share the same preprocessor — the static classifier
+uses preprocessor.next() for cropped hand candidates, while the dynamic
+classifier uses preprocessor.next_full_frame() for full frames needed
+for centroid motion tracking. This avoids opening the webcam twice.
 """
 
 import os
 import signal
-import socket
 import sys
 import time
 import cv2
@@ -30,62 +29,56 @@ from classifier.data.adapter import candidate_to_detection
 from dynamic_classifier.inference import GestureClassifier
 from command_engine.engine import CommandEngine, EngineConfig
 
-# config and setup
-LAPTOP_IP       = "10.0.0.249"  # <-- laptop's local IP
-PORT            = 5005
-CHECKPOINT_PATH = "classifier/models/weights/cnn_best.pt"
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
 
-FRAME_WIDTH             = 320
-FRAME_HEIGHT            = 240
-CLASSIFY_EVERY_N_FRAMES = 2
+CHECKPOINT_PATH          = "classifier/models/weights/cnn_best.pt"
+CLASSIFY_EVERY_N_FRAMES  = 2
 
 engine_config = EngineConfig(
-    debounce_frames=2,
+    debounce_frames=5,
     cooldown_seconds=1.5,
     confidence_threshold=0.75,
-    require_no_hand_reset=True,
+    require_no_hand_reset=False,
 )
 
-preprocessor = init_preprocessor(PreprocessorConfig(
-    input_mode="webcam",
-    frame_size=(FRAME_WIDTH, FRAME_HEIGHT),
-))
-time.sleep(2)
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
+
+preprocessor = init_preprocessor(PreprocessorConfig(input_mode="webcam"))
+time.sleep(2)  # give camera time to warm up
 
 static_classifier = StaticClassifier(model_path=CHECKPOINT_PATH)
 dynamic_classifier = GestureClassifier(window_size=20)
-engine = CommandEngine(
-    config=engine_config,
-    keypress_fn=lambda key: None, 
-)
+engine = CommandEngine(config=engine_config)
 
-# Connect to laptop listener
-print(f"Connecting to laptop at {LAPTOP_IP}:{PORT}...")
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.connect((LAPTOP_IP, PORT))
-print("Connected.")
 
 def _handle_sigint(sig, frame):
     print("\nShutting down.")
-    sock.close()
     sys.exit(0)
 
 signal.signal(signal.SIGINT, _handle_sigint)
 
 print("Gesture control running. Press Ctrl+C to stop.")
 
-# main loop
+# ---------------------------------------------------------------------------
+# Main loop
+# ---------------------------------------------------------------------------
+
 frame_index = 0
 last_dynamic_label      = None
 last_dynamic_confidence = 0.0
 
 while True:
-    # dynamic classifier
+    # --- Dynamic classifier (HMM, full frame) ---
     packet = preprocessor.next_full_frame()
     if packet is None:
         time.sleep(0.01)
         continue
 
+    # FramePacket gives RGB; GestureClassifier expects BGR
     frame_bgr = cv2.cvtColor(packet.frame_rgb, cv2.COLOR_RGB2BGR)
 
     if frame_index % CLASSIFY_EVERY_N_FRAMES == 0:
@@ -95,19 +88,16 @@ while True:
     dynamic_action = engine.process(last_dynamic_label, confidence=last_dynamic_confidence)
     if dynamic_action:
         print(f"Dynamic action fired: {dynamic_action}")
-        sock.send(dynamic_action.encode())
 
-    # static classifier
+    # --- Static classifier (CNN, cropped candidate) ---
     candidate = preprocessor.next()
     if candidate is not None and candidate.candidate_index == 0:
         detection = candidate_to_detection(candidate)
         result = static_classifier.classify(detection)
         if result.gesture is not None:
+            print(f"Static gesture: {result.gesture} ({result.confidence:.2f})")
             static_action = engine.process(result.gesture, confidence=result.confidence)
             if static_action:
                 print(f"Static action fired: {static_action}")
-                sock.send(static_action.encode())
 
     frame_index += 1
-
-sock.close()

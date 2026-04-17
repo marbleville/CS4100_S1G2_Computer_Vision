@@ -1,6 +1,11 @@
+"""
+Hidden Marcov Model framework. Uses forward algorithm for predictions and Baum Welch for training.
+Used for dynamic classifier classifications.
+"""
 import numpy as np
 
 class HMM:
+    # Initializes the HMM
     def __init__(self, n_states, n_obs_states=10):
         self.n = n_states
         self.m = n_obs_states
@@ -10,6 +15,7 @@ class HMM:
         # emission probabilities
         self.B = np.array([np.random.dirichlet(np.ones(self.m)) for _ in range(self.n)])
 
+    # Returns the probability of a given sequence
     def forward(self, obs_seq):
         T = len(obs_seq)
         if T <= 1:
@@ -49,6 +55,7 @@ class HMM:
             beta[t] /= scale[t + 1]
         return beta
     
+    # Trains the HMM
     def baum_welch(self, data, n_iter=50, print_output=False):
         log_probs = []
         for _ in range(n_iter):

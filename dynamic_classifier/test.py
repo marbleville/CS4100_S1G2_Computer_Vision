@@ -1,3 +1,7 @@
+"""
+Uses testing data to evaluate the dynamic classifier's performance.
+Plots results in graphs.
+"""
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,6 +11,7 @@ from features import video_to_obs_sequence
 from inference import classify
 from plot import plot_confusion_matrix
 
+# Uses data from testing folders to evaluate the dynamic classifier's performance
 def evaluate(hmm_left, hmm_right, hmm_none, test_folders):
     classes = ["left", "right", "none"]
     matrix  = np.zeros((3, 3), dtype=int)
@@ -36,6 +41,7 @@ def evaluate(hmm_left, hmm_right, hmm_none, test_folders):
 
     return matrix, results
 
+# Prints the model's accuracy from the confusuion matrix
 def print_accuracy(matrix):
     classes = ["left", "right", "none"]
     total   = matrix.sum()
@@ -47,6 +53,7 @@ def print_accuracy(matrix):
             print(f"  {cls}: {matrix[i][i]}/{row_total} = {matrix[i][i]/row_total*100:.1f}%")
 
 
+# Tests the dynamic classifier HMMs
 __name__ == "__main__"
 if __name__ == "__main__":
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
