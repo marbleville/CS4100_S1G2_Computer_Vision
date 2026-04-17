@@ -1,3 +1,8 @@
+"""
+Classifies a sequence of hand x-positions into one of three classes: left_swipe, right_swipe, or none.
+Compares probabilities from 3 HMMs to find the most likley classification.
+"""
+
 import os
 import cv2
 #import threading
@@ -13,6 +18,7 @@ N_BINS = 10
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULT_MAP = {"right" : "right_swipe", "left" : "left_swipe", "none" : None}
 
+# Load and return saved HMMs
 def get_hmms():
     hmm_right = HMM(N_STATES, N_BINS)
     hmm_left  = HMM(N_STATES, N_BINS)
@@ -23,6 +29,7 @@ def get_hmms():
     hmm_none  = load_hmm(hmm_none,  "none",  BASE_DIR)
     return hmm_right, hmm_left, hmm_none
 
+# Classify a given sequence
 def classify(obs_window, hmm_right, hmm_left, hmm_none):
     if len(obs_window) < 3:
         return None, 0.0  
@@ -92,7 +99,9 @@ def run_webcam(hmm_right, hmm_left, hmm_none, n_bins=10, window_size=20):
     listener.stop()
 '''
 
+# Takes frames and predicts what actions is being performed using 3 HMMs
 class GestureClassifier:
+    # Initializes the GestureClassifier
     def __init__(self, window_size=20):
         BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
@@ -111,6 +120,7 @@ class GestureClassifier:
         self.obs_buffer  = []
         self.no_hand_count = 0
 
+    # Predicts and returns the action most likley being performed with a confidence score
     def predict(self, frame):
         mask = process_frame(frame, self.subtractor, self.kernel)
 
@@ -137,6 +147,7 @@ class GestureClassifier:
         return RESULT_MAP[result], confidence
 
 
+# Test classification using the computer webcam
 if __name__ == "__main__":
     WINDOW_SIZE = 20
 

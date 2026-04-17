@@ -10,3 +10,5 @@ pygments==2.19.2
 pytest==9.0.2
 torch>=2.0.0
 torchvision>=0.15.0
+matplotlib>=3.10.8
+scipy>=1.17.1

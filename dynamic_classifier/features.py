@@ -1,8 +1,13 @@
+"""
+Discretizes video frames by tracking hand x-position via background subtraction.
+Saves resulting sequence in a csv file to be used to train dynamic classifier HMMs.
+"""
 import cv2
 import numpy as np
 import os
 import csv
 
+# Return all the frames form a video at a specified path
 def load_video_frames(path, frame_skip=2):
     cap = cv2.VideoCapture(path)
     frames = []
@@ -17,6 +22,7 @@ def load_video_frames(path, frame_skip=2):
     cap.release()
     return frames
 
+# Use background subtraction to determine hand position
 def extract_hand_mask(frames):
     subtractor = cv2.createBackgroundSubtractorMOG2(history=10, varThreshold=25, detectShadows=False)
     kernel = np.ones((10, 10), np.uint8)
@@ -33,6 +39,7 @@ def extract_hand_mask(frames):
 
     return masks
 
+# Apply background subtraction to a given frame
 def process_frame(frame, subtractor, kernel):
     mask = subtractor.apply(frame)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
@@ -40,11 +47,7 @@ def process_frame(frame, subtractor, kernel):
     mask = cv2.dilate(mask, kernel, iterations=2)
     return mask
 
-
-def verify_hand(frame, mask):
-    # TODO: Use preprocessor to check if detected hand area overlaps with moving frames
-    return True
-
+# Get the position of the hand given the background-subtracted mask
 def get_centroid(mask):
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -58,9 +61,11 @@ def get_centroid(mask):
     cy = int(M["m01"] / M["m00"])
     return (cx, cy)
 
+# Return the discretized hand position
 def discretize(cx, frame_width, n_bins=10):
     return min(int((cx / frame_width) * n_bins), n_bins - 1)
 
+# Given a video, return the discretized hand x-position sequence
 def video_to_obs_sequence(path, n_bins=10):
     frames = load_video_frames(path)
     masks = extract_hand_mask(frames)
@@ -68,8 +73,6 @@ def video_to_obs_sequence(path, n_bins=10):
     obs = []
 
     for frame, mask in zip(frames, masks):
-        if not verify_hand(frame, mask):
-            continue
         centroid = get_centroid(mask)
         if centroid is None:
             continue
@@ -79,6 +82,7 @@ def video_to_obs_sequence(path, n_bins=10):
         return []
     return obs
 
+# Process all the videos in a given folder and save the discretized sequences in a csv file
 def process_folder(folder_path, output_csv, n_bins=10):
     with open(output_csv, mode='w', newline='') as out_file:
         obs_list = []
@@ -92,6 +96,7 @@ def process_folder(folder_path, output_csv, n_bins=10):
         writer.writerows(obs_list)
 
 
+# Create the csv files for the right_swipe, left_swipe, and none HMMs
 if __name__ == "main":
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     process_folder(os.path.join(BASE_DIR, "data", "right_swipe"), 
